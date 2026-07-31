@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackAsTool>true</PackAsTool>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <ToolCommandName>vscodex</ToolCommandName>
+    <PackageId>VsCodexProxy.Client</PackageId>
+    <Version>0.4.2</Version>
+    <Authors>VsCodexProxy</Authors>
+    <Description>Command-line client for the local VS Codex Proxy Visual Studio extension.</Description>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageOutputPath>..\..\artifacts</PackageOutputPath>
+    <CertificateThumbprint>45ce844059a76db21ab0516bab0f305a64befbd0</CertificateThumbprint>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+  <Target Name="SignOutput" AfterTargets="Build">
+    <SignFile CertificateThumbprint="$(CertificateThumbprint)" SigningTarget="$(TargetDir)$(TargetName).dll" TimestampUrl="$(TimestampUrl)" Condition="Exists('$(TargetDir)$(TargetName).dll')" />
+  </Target>
+</Project>

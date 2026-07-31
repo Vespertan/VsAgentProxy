@@ -1,0 +1,35 @@
+<Project>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GeneratePkgDefFile>true</GeneratePkgDefFile>
+    <DeployExtension Condition="'$(BuildingInsideVisualStudio)' == 'true' and '$(MSBuildRuntimeType)' != 'Core'">true</DeployExtension>
+    <DeployExtension Condition="'$(DeployExtension)' == ''">false</DeployExtension>
+    <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
+    <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
+    <UseCodebase>true</UseCodebase>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2120" PrivateAssets="all" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="source.extension.vsixmanifest">
+      <SubType>Designer</SubType>
+    </None>
+    <EmbeddedResource Include="..\..\docs\AGENT_PROTOCOL.md" Link="AgentProtocol.md">
+      <LogicalName>VsCodexProxy.AgentProtocol.md</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+  <Import Project="$(NuGetPackageRoot)microsoft.vssdk.buildtools\17.14.2120\tools\vssdk\Microsoft.VsSDK.targets" />
+
+  <Target Name="BuildVsixContainer" AfterTargets="Build" DependsOnTargets="CreateVsixContainer" />
+</Project>
