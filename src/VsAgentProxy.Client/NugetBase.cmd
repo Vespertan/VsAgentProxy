@@ -34,7 +34,7 @@ if [%nugetSrc_Uri%%nugetSrc2_Uri%%localNugetSrc_Dir%] == [] (echo Error: no nuge
 
 :: Clean old packages if exists
 if exist "%projectDir%\bin\%projectName%*.nupkg" del "%projectDir%\bin\%projectName%*.nupkg"
-if exist "%projectDir%\bin\%projectName%*.nupkg" goto err 
+if exist "%projectDir%\bin\%projectName%*.nupkg" goto err
 
 :: Increment project version before build
 for /f "delims=" %%i in ('where powershell') do set powershellLocation=%%i
@@ -82,7 +82,7 @@ dotnet build "%projectDir%\%projectName%.csproj" --configuration Release
 if %errorlevel% NEQ 0 (echo Error: build failed & goto err)
 
 dotnet pack "%projectDir%\%projectName%.csproj" --configuration Release --no-build -o "%projectDir%\bin"
-if %errorlevel% NEQ 0 goto err 
+if %errorlevel% NEQ 0 goto err
 
 :: Set unified package file name
 move "%projectDir%\bin\%projectName%*.nupkg" "%projectDir%\bin\%projectName%.nupkg"
