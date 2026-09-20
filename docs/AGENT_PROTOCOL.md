@@ -27,7 +27,7 @@ from the repository:
 
 ```powershell
 dotnet pack .\src\VsAgentProxy.Client\VsAgentProxy.Client.csproj -c Release --no-restore
-dotnet tool install --global --configfile .\NuGet.Tool.config VsAgentProxy.Client --version 0.7.0
+dotnet tool install --global --configfile .\NuGet.Tool.config VsAgentProxy.Client --version 0.7.1
 ```
 
 Fallback without a global installation:
@@ -538,4 +538,4 @@ src\VsAgentProxy\bin\Debug\net472\VsAgentProxy.vsix
 ```
 
 After changing the extension, install the new VSIX and restart Visual Studio.
-Current manifest version: `0.7.0`.
+Current manifest version: `0.7.1`.

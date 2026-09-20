@@ -1,6 +1,6 @@
 # VS Agent Proxy
 
-Current version: `0.7.0` (extension and client), contract version 2.
+Current version: `0.7.1` (extension and client), contract version 2.
 
 VS Agent Proxy is a local bridge between Visual Studio and automation clients.
 The extension exposes an explicit allow-list of operations through a Named Pipe:
@@ -45,7 +45,7 @@ Install the client globally:
 
 ```powershell
 dotnet pack ./src/VsAgentProxy.Client/VsAgentProxy.Client.csproj -c Release --no-restore
-dotnet tool install --global --configfile ./NuGet.Tool.config VsAgentProxy.Client --version 0.7.0
+dotnet tool install --global --configfile ./NuGet.Tool.config VsAgentProxy.Client --version 0.7.1
 ```
 
 Version 0.7.0 renamed the product from VS Codex Proxy. Install the new VSIX

@@ -8,7 +8,7 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <ToolCommandName>vsagent</ToolCommandName>
     <PackageId>VsAgentProxy.Client</PackageId>
-    <Version>0.7.0</Version>
+    <Version>0.7.1</Version>
     <Authors>Vespertan</Authors>
     <Description>Command-line client for the local VS Agent Proxy Visual Studio extension.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Id="VsAgentProxy.7b8f6fcc-9bc7-472e-8dbe-75f32de824ec" Version="0.7.0" Language="en-US" Publisher="VsAgentProxy" />
+    <Identity Id="VsAgentProxy.7b8f6fcc-9bc7-472e-8dbe-75f32de824ec" Version="0.7.1" Language="en-US" Publisher="VsAgentProxy" />
     <DisplayName>VS Agent Proxy</DisplayName>
     <Description xml:space="preserve">Connect AI agents and automation clients to Visual Studio through a local Named Pipe. Inspect debugger state, processes, threads, stacks, locals, arguments, breakpoints, Output, documents, and diagnostics; manage projects, startup selections, and launch profiles; build, run, stop, and step through code through an explicit allow-list of operations. Requires the companion global .NET tool from NuGet: dotnet tool install --global VsAgentProxy.Client. Agent skill: https://github.com/Vespertan/VsAgentProxy/blob/main/.agents/skills/vsagent/SKILL.md.</Description>
     <MoreInfo>https://github.com/Vespertan/VsAgentProxy</MoreInfo>
