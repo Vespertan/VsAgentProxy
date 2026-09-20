@@ -1,8 +1,8 @@
-# VS Codex Proxy — full agent documentation
+# VS Agent Proxy — full agent documentation
 
 ## 1. Purpose and architecture
 
-VS Codex Proxy is a local bridge between an agent and Visual Studio. The VSIX
+VS Agent Proxy is a local bridge between an agent and Visual Studio. The VSIX
 extension runs inside the `devenv.exe` process, uses EnvDTE on the Visual Studio
 main thread, and exposes a closed allow-list of operations through a named pipe.
 It does not expose a TCP server or an arbitrary `ExecuteCommand`.
@@ -10,11 +10,11 @@ It does not expose a TCP server or an arbitrary `ExecuteCommand`.
 Each instance creates a named pipe:
 
 ```text
-pipe:       VsCodexProxy-{PID}
+pipe:       VsAgentProxy-{PID}
 ```
 
 The client discovers active instances by enumerating `\\.\pipe\` and filtering
-the `VsCodexProxy-{PID}` pattern. The pipe name supplies the Visual Studio PID.
+the `VsAgentProxy-{PID}` pattern. The pipe name supplies the Visual Studio PID.
 Use an explicit PID to select an instance unambiguously. The selected pipe is
 connected directly for the requested operation; the client does not send an
 implicit `ping` before every command. Call `ping` explicitly when you need to
@@ -22,33 +22,33 @@ inspect the proxy version or session.
 
 ## 2. CLI client
 
-`vscodex` is a global .NET tool and can be run from any directory. Install it
+`vsagent` is a global .NET tool and can be run from any directory. Install it
 from the repository:
 
 ```powershell
-dotnet pack .\src\VsCodexProxy.Client\VsCodexProxy.Client.csproj -c Release --no-restore
-dotnet tool install --global --configfile .\NuGet.Tool.config VsCodexProxy.Client --version 0.6.2
+dotnet pack .\src\VsAgentProxy.Client\VsAgentProxy.Client.csproj -c Release --no-restore
+dotnet tool install --global --configfile .\NuGet.Tool.config VsAgentProxy.Client --version 0.7.0
 ```
 
 Fallback without a global installation:
 
 ```powershell
-dotnet run --project .\src\VsCodexProxy.Client --no-build -- --pid 12345 status
+dotnet run --project .\src\VsAgentProxy.Client --no-build -- --pid 12345 status
 ```
 
 ### Selecting an instance
 
 ```powershell
-vscodex instances
-vscodex --version
-vscodex --pid 12345 status
+vsagent instances
+vsagent --version
+vsagent --pid 12345 status
 ```
 
 `instances` lists currently enumerated proxy pipes. Without `--pid`, the client
 selects the candidate with the newest available Visual Studio process start
 time. Do not rely on automatic selection when more than one Visual Studio
 instance is running.
-Use `vscodex --version` to print the client version from its assembly metadata.
+Use `vsagent --version` to print the client version from its assembly metadata.
 
 ### Response format
 
@@ -115,9 +115,9 @@ Modes returned by `status`:
 ### `capabilities` and `documentation`
 
 ```powershell
-vscodex --pid 12345 capabilities
-vscodex --pid 12345 documentation --level short
-vscodex --pid 12345 documentation --level full
+vsagent --pid 12345 capabilities
+vsagent --pid 12345 documentation --level short
+vsagent --pid 12345 documentation --level full
 ```
 
 `capabilities` returns a machine-readable catalog of methods, parameters,
@@ -155,7 +155,7 @@ instruction column.
 ### `projects` (since 0.5.0)
 
 ```powershell
-vscodex --pid 12345 projects
+vsagent --pid 12345 projects
 ```
 
 Returns `solution`, `isOpen`, `isFullyLoaded`, a `projects` array, the DTE
@@ -174,10 +174,10 @@ the DTE startup selection was unavailable.
 ### `diagnostics` (since 0.5.0)
 
 ```powershell
-vscodex --pid 12345 diagnostics --severity error --count 200
-vscodex --pid 12345 diagnostics --origin build --offset 0 --count 100
-vscodex --pid 12345 diagnostics --origin project-load
-vscodex --pid 12345 diagnostics --file C:\Project\app.html
+vsagent --pid 12345 diagnostics --severity error --count 200
+vsagent --pid 12345 diagnostics --origin build --offset 0 --count 100
+vsagent --pid 12345 diagnostics --origin project-load
+vsagent --pid 12345 diagnostics --file C:\Project\app.html
 ```
 
 Filters: `severity` = `error|warning|message|unknown`, `origin` =
@@ -211,7 +211,7 @@ does not open documents or force another analysis.
 ### `launchCheck` (since 0.5.0)
 
 ```powershell
-vscodex --pid 12345 launchCheck
+vsagent --pid 12345 launchCheck
 ```
 
 Returns `canExecuteStartCommand` (true/false/null), `startAction`, `mode`,
@@ -233,8 +233,8 @@ active profile depend on the project provider.
 ### `locals` and `arguments`
 
 ```powershell
-vscodex --pid 12345 locals --frameIndex 0 --maxDepth 2 --maxItems 200
-vscodex --pid 12345 arguments --frameIndex 0 --maxDepth 1 --maxItems 100
+vsagent --pid 12345 locals --frameIndex 0 --maxDepth 2 --maxItems 200
+vsagent --pid 12345 arguments --frameIndex 0 --maxDepth 1 --maxItems 100
 ```
 
 Parameters:
@@ -252,7 +252,7 @@ reached.
 ### `evaluate`
 
 ```powershell
-vscodex --pid 12345 evaluate --expression "customer.Address.City" --timeoutMs 1000 --maxDepth 1 --maxItems 100
+vsagent --pid 12345 evaluate --expression "customer.Address.City" --timeoutMs 1000 --maxDepth 1 --maxItems 100
 ```
 
 Required parameter: `expression`. Optional parameters are `timeoutMs`
@@ -271,19 +271,19 @@ characters.
 List panes:
 
 ```powershell
-vscodex --pid 12345 output
+vsagent --pid 12345 output
 ```
 
 Tail of a pane (backward-compatible form):
 
 ```powershell
-vscodex --pid 12345 output Debug 20000
+vsagent --pid 12345 output Debug 20000
 ```
 
 Character range:
 
 ```powershell
-vscodex --pid 12345 output Debug --offset 10000 --count 5000
+vsagent --pid 12345 output Debug --offset 10000 --count 5000
 ```
 
 `count` must be in the range 1–200000. Without `offset`, the last `count`
@@ -364,7 +364,7 @@ Common parameters:
 - `enabled`: default `true`.
 
 ```powershell
-vscodex --pid 12345 breakpointAdd --file C:\Project\Program.cs --line 42 --condition "retryCount > 2" --conditionType whenTrue
+vsagent --pid 12345 breakpointAdd --file C:\Project\Program.cs --line 42 --condition "retryCount > 2" --conditionType whenTrue
 ```
 
 The response is an array because Visual Studio can create several breakpoints,
@@ -373,14 +373,14 @@ for example for an overloaded function. Each receives a separate stable `id`.
 ### Enable and disable — `breakpointSetEnabled`
 
 ```powershell
-vscodex --pid 12345 breakpointSetEnabled --id <id> --enabled false
-vscodex --pid 12345 breakpointSetEnabled --index 0 --enabled true
+vsagent --pid 12345 breakpointSetEnabled --id <id> --enabled false
+vsagent --pid 12345 breakpointSetEnabled --index 0 --enabled true
 ```
 
 ### Criteria — `breakpointSetCriteria`
 
 ```powershell
-vscodex --pid 12345 breakpointSetCriteria --id <id> --condition "retryCount > 5" --conditionType whenTrue --hitCount 3 --hitCountType greaterOrEqual
+vsagent --pid 12345 breakpointSetCriteria --id <id> --condition "retryCount > 5" --conditionType whenTrue --hitCount 3 --hitCountType greaterOrEqual
 ```
 
 All criteria parameters are optional; omitted values retain their current
@@ -392,8 +392,8 @@ state and ID.
 ### Remove — `breakpointRemove`
 
 ```powershell
-vscodex --pid 12345 breakpointRemove --id <id>
-vscodex --pid 12345 breakpointRemove --index 0
+vsagent --pid 12345 breakpointRemove --id <id>
+vsagent --pid 12345 breakpointRemove --index 0
 ```
 
 Prefer `id`. `index` is zero-based and unstable after an item is added or
@@ -467,10 +467,10 @@ returns the original response, so read the current operation result with
 first; deduplication is not durable.
 
 ```powershell
-vscodex --pid 12345 build --wait true --idempotencyKey build-001
-vscodex --pid 12345 start --wait true --idempotencyKey start-001
-vscodex --pid 12345 waitForState --state break --waitTimeoutMs 60000
-vscodex --pid 12345 waitForState --operationId <id> --waitTimeoutMs 120000
+vsagent --pid 12345 build --wait true --idempotencyKey build-001
+vsagent --pid 12345 start --wait true --idempotencyKey start-001
+vsagent --pid 12345 waitForState --state break --waitTimeoutMs 60000
+vsagent --pid 12345 waitForState --operationId <id> --waitTimeoutMs 120000
 ```
 
 ### Variables, breakpoints, and context
@@ -528,14 +528,14 @@ readiness control are outside this version.
 ## 9. Building and updating
 
 ```powershell
-dotnet build .\src\VsCodexProxy.slnx
+dotnet build .\src\VsAgentProxy.slnx
 ```
 
 Output:
 
 ```text
-src\VsCodexProxy\bin\Debug\net472\VsCodexProxy.vsix
+src\VsAgentProxy\bin\Debug\net472\VsAgentProxy.vsix
 ```
 
 After changing the extension, install the new VSIX and restart Visual Studio.
-Current manifest version: `0.6.2`.
+Current manifest version: `0.7.0`.

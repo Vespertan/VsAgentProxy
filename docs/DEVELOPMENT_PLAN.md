@@ -1,4 +1,4 @@
-# Plan rozwoju VS Codex Proxy
+# Plan rozwoju VS Agent Proxy
 
 Data: 2026-09-20. Status: etap 1 w 0.5.0; etapy 2–5 rozpatrzone i dostępny zakres
 wdrożony w 0.6.0. Profile całej solucji działają w VS 2026 przez wersjonowany
@@ -35,7 +35,7 @@ niezainicjalizowany pusty panel Output wymaga pierwszej aktywacji; implementacja
 przywraca później poprzedni panel, widoczność i aktywne okno, zamiast uznawać E_FAIL
 za dowód pustego bufora.
 
-Punktem wyjścia jest `C:/Projekty/Vespertan/AngularControls/docs/vscodex-missing-functions.md`, kod proxy i dokumentacja SDK Microsoftu. Plan obejmuje P1, P2 oraz powiązane usprawnienia. Etap 1 zweryfikowano później w osobnej instancji VS 2026; wyniki i ograniczenia opisuje [raport weryfikacji 0.5.0](VALIDATION_0_5_0.md).
+Punktem wyjścia jest `C:/Projekty/Vespertan/AngularControls/docs/vsagent-missing-functions.md`, kod proxy i dokumentacja SDK Microsoftu. Plan obejmuje P1, P2 oraz powiązane usprawnienia. Etap 1 zweryfikowano później w osobnej instancji VS 2026; wyniki i ograniczenia opisuje [raport weryfikacji 0.5.0](VALIDATION_0_5_0.md).
 
 ## 1. Cel i kolejność
 
@@ -161,7 +161,7 @@ Jeżeli terminal nie udostępnia historii, zwracać `unsupported` i zakres fakty
 | Średni, po etapie 4 | `modules` / `loadedScripts` | Pomaga ustalić, czy debugger załadował właściwy skrypt/moduł i czy są dane symboli lub mapowania. |
 | Później | Uruchamianie testów i wyniki Test Explorer | Osobny adapter z identyfikatorami operacji; przydatny po ustabilizowaniu build i diagnostyk. |
 
-Wykrywanie instancji opierać na enumeracji potoków `VsCodexProxy-{PID}`. `ping` pozostawić jako jawną diagnostykę wersji i sesji, bez wysyłania go przed każdą operacją.
+Wykrywanie instancji opierać na enumeracji potoków `VsAgentProxy-{PID}`. `ping` pozostawić jako jawną diagnostykę wersji i sesji, bez wysyłania go przed każdą operacją.
 
 ## 10. Weryfikacja i podział dostaw
 

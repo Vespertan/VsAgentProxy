@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="../.gitignore" />
+    <File Path="../AGENTS.md" />
+    <File Path="../docs/AGENT_PROTOCOL.md" />
+    <File Path="../global.json" />
+    <File Path="../LICENSE" />
+    <File Path="../NuGet.Tool.config" />
+    <File Path="../README.md" />
+  </Folder>
+  <Project Path="VsAgentProxy/VsAgentProxy.csproj">
+    <Deploy Solution="Debug|*" />
+  </Project>
+  <Project Path="VsAgentProxy.Client/VsAgentProxy.Client.csproj" />
+  <Project Path="VsAgentProxy.Tests/VsAgentProxy.Tests.csproj" />
+</Solution>

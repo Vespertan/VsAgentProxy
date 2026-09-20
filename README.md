@@ -1,8 +1,8 @@
-# VS Codex Proxy
+# VS Agent Proxy
 
-Current version: `0.6.2` (extension and client), contract version 2.
+Current version: `0.7.0` (extension and client), contract version 2.
 
-VS Codex Proxy is a local bridge between Visual Studio and automation clients.
+VS Agent Proxy is a local bridge between Visual Studio and automation clients.
 The extension exposes an explicit allow-list of operations through a Named Pipe:
 
 - debugger state and the current process/thread,
@@ -26,17 +26,17 @@ The extension is self-describing: `capabilities` returns the API catalog, and
 
 There is no arbitrary `ExecuteCommand` and no TCP server. `evaluate` is explicit;
 enumerating DTE variables can also trigger adapter-side evaluation. Each Visual
-Studio instance creates a pipe named `VsCodexProxy-{PID}`. The client discovers
+Studio instance creates a pipe named `VsAgentProxy-{PID}`. The client discovers
 active instances by enumerating Named Pipes and does not use PID descriptor files.
 
 ## Build and install
 
 ```powershell
-dotnet build ./src/VsCodexProxy.slnx
+dotnet build ./src/VsAgentProxy.slnx
 ```
 
 Install the generated `.vsix` from
-`src/VsCodexProxy/bin/Debug/net472`. Restart Visual Studio afterwards; the
+`src/VsAgentProxy/bin/Debug/net472`. Restart Visual Studio afterwards; the
 extension starts in the background.
 
 ## Client
@@ -44,68 +44,72 @@ extension starts in the background.
 Install the client globally:
 
 ```powershell
-dotnet pack ./src/VsCodexProxy.Client/VsCodexProxy.Client.csproj -c Release --no-restore
-dotnet tool install --global --configfile ./NuGet.Tool.config VsCodexProxy.Client --version 0.6.2
+dotnet pack ./src/VsAgentProxy.Client/VsAgentProxy.Client.csproj -c Release --no-restore
+dotnet tool install --global --configfile ./NuGet.Tool.config VsAgentProxy.Client --version 0.7.0
 ```
+
+Version 0.7.0 renamed the product from VS Codex Proxy. Install the new VSIX
+and `VsAgentProxy.Client`; the former `vscodex` client does not connect to
+the new `VsAgentProxy-{PID}` pipe.
 
 After installation, these are the preferred commands:
 
 ```powershell
-vscodex instances
-vscodex --version
-vscodex status
-vscodex stackTrace
-vscodex projects
-vscodex launchCheck
-vscodex diagnostics --severity error --count 200
-vscodex diagnostics --origin project-load
-vscodex output --paneId <guid> --offset 0 --count 10000
-vscodex --pid 12345 documents
-vscodex --pid 12345 projectReload --path C:/Project/App.esproj
-vscodex --pid 12345 setStartupProjects --path C:/Project/App.esproj
-vscodex --pid 12345 launchProfiles --project C:/Project/App.esproj
-vscodex --pid 12345 selectLaunchProfile --project C:/Project/App.esproj --name "Demo (Chrome)"
-vscodex --pid 12345 solutionLaunchProfiles
-vscodex --pid 12345 selectSolutionLaunchProfile --name "Demo" --scope shared
-vscodex --pid 12345 build --wait true --idempotencyKey build-001
-vscodex --pid 12345 start --wait true --idempotencyKey start-001
-vscodex --pid 12345 waitForState --state break --waitTimeoutMs 60000
-vscodex --pid 12345 scopes --frameIndex 0
-vscodex --pid 12345 variables --reference <id> --offset 0 --count 50
-vscodex --pid 12345 events --afterSequence 0
+vsagent instances
+vsagent --version
+vsagent status
+vsagent stackTrace
+vsagent projects
+vsagent launchCheck
+vsagent diagnostics --severity error --count 200
+vsagent diagnostics --origin project-load
+vsagent output --paneId <guid> --offset 0 --count 10000
+vsagent --pid 12345 documents
+vsagent --pid 12345 projectReload --path C:/Project/App.esproj
+vsagent --pid 12345 setStartupProjects --path C:/Project/App.esproj
+vsagent --pid 12345 launchProfiles --project C:/Project/App.esproj
+vsagent --pid 12345 selectLaunchProfile --project C:/Project/App.esproj --name "Demo (Chrome)"
+vsagent --pid 12345 solutionLaunchProfiles
+vsagent --pid 12345 selectSolutionLaunchProfile --name "Demo" --scope shared
+vsagent --pid 12345 build --wait true --idempotencyKey build-001
+vsagent --pid 12345 start --wait true --idempotencyKey start-001
+vsagent --pid 12345 waitForState --state break --waitTimeoutMs 60000
+vsagent --pid 12345 scopes --frameIndex 0
+vsagent --pid 12345 variables --reference <id> --offset 0 --count 50
+vsagent --pid 12345 events --afterSequence 0
 ```
 
 Update the installed version with:
 
 ```powershell
-dotnet tool update --global --configfile ./NuGet.Tool.config VsCodexProxy.Client
+dotnet tool update --global --configfile ./NuGet.Tool.config VsAgentProxy.Client
 ```
 
 The client can also be run without a global installation:
 
 ```powershell
-dotnet run --project ./src/VsCodexProxy.Client -- instances
-dotnet run --project ./src/VsCodexProxy.Client -- status
-dotnet run --project ./src/VsCodexProxy.Client -- capabilities
-dotnet run --project ./src/VsCodexProxy.Client -- documentation --level full
-dotnet run --project ./src/VsCodexProxy.Client -- stackTrace
-dotnet run --project ./src/VsCodexProxy.Client -- output
-dotnet run --project ./src/VsCodexProxy.Client -- output Build 50000
-dotnet run --project ./src/VsCodexProxy.Client -- output Build --offset 0 --count 10000
-dotnet run --project ./src/VsCodexProxy.Client -- activeDocument
-dotnet run --project ./src/VsCodexProxy.Client -- start
-dotnet run --project ./src/VsCodexProxy.Client -- startWithoutDebugging
-dotnet run --project ./src/VsCodexProxy.Client -- restart
-dotnet run --project ./src/VsCodexProxy.Client -- stepOver
-dotnet run --project ./src/VsCodexProxy.Client -- --pid 12345 status
-dotnet run --project ./src/VsCodexProxy.Client -- locals --frameIndex 0 --maxDepth 2
-dotnet run --project ./src/VsCodexProxy.Client -- arguments --frameIndex 0
-dotnet run --project ./src/VsCodexProxy.Client -- evaluate --expression "customer.Address.City"
-dotnet run --project ./src/VsCodexProxy.Client -- breakpoints
-dotnet run --project ./src/VsCodexProxy.Client -- breakpointAdd --file C:/Project/Program.cs --line 42 --condition "retryCount > 2" --conditionType whenTrue
-dotnet run --project ./src/VsCodexProxy.Client -- breakpointSetEnabled --id 0123456789abcdef --enabled false
-dotnet run --project ./src/VsCodexProxy.Client -- breakpointSetCriteria --id 0123456789abcdef --condition "retryCount > 5" --hitCount 3 --hitCountType greaterOrEqual
-dotnet run --project ./src/VsCodexProxy.Client -- breakpointRemove --id 0123456789abcdef
+dotnet run --project ./src/VsAgentProxy.Client -- instances
+dotnet run --project ./src/VsAgentProxy.Client -- status
+dotnet run --project ./src/VsAgentProxy.Client -- capabilities
+dotnet run --project ./src/VsAgentProxy.Client -- documentation --level full
+dotnet run --project ./src/VsAgentProxy.Client -- stackTrace
+dotnet run --project ./src/VsAgentProxy.Client -- output
+dotnet run --project ./src/VsAgentProxy.Client -- output Build 50000
+dotnet run --project ./src/VsAgentProxy.Client -- output Build --offset 0 --count 10000
+dotnet run --project ./src/VsAgentProxy.Client -- activeDocument
+dotnet run --project ./src/VsAgentProxy.Client -- start
+dotnet run --project ./src/VsAgentProxy.Client -- startWithoutDebugging
+dotnet run --project ./src/VsAgentProxy.Client -- restart
+dotnet run --project ./src/VsAgentProxy.Client -- stepOver
+dotnet run --project ./src/VsAgentProxy.Client -- --pid 12345 status
+dotnet run --project ./src/VsAgentProxy.Client -- locals --frameIndex 0 --maxDepth 2
+dotnet run --project ./src/VsAgentProxy.Client -- arguments --frameIndex 0
+dotnet run --project ./src/VsAgentProxy.Client -- evaluate --expression "customer.Address.City"
+dotnet run --project ./src/VsAgentProxy.Client -- breakpoints
+dotnet run --project ./src/VsAgentProxy.Client -- breakpointAdd --file C:/Project/Program.cs --line 42 --condition "retryCount > 2" --conditionType whenTrue
+dotnet run --project ./src/VsAgentProxy.Client -- breakpointSetEnabled --id 0123456789abcdef --enabled false
+dotnet run --project ./src/VsAgentProxy.Client -- breakpointSetCriteria --id 0123456789abcdef --condition "retryCount > 5" --hitCount 3 --hitCountType greaterOrEqual
+dotnet run --project ./src/VsAgentProxy.Client -- breakpointRemove --id 0123456789abcdef
 ```
 
 Responses are JSON, so the client can also be called from agent tooling. When
@@ -145,11 +149,9 @@ Line and column numbers are one-based. Details: [agent protocol](docs/AGENT_PROT
 Contract and snapshot handling tests:
 
 ```powershell
-dotnet test ./src/VsCodexProxy.Tests/VsCodexProxy.Tests.csproj
+dotnet test ./src/VsAgentProxy.Tests/VsAgentProxy.Tests.csproj
 ```
 
-Validation in a separate Visual Studio 2026 instance covers .NET and a copy of
-AngularControls: [0.6.0 validation report](docs/VALIDATION_0_6_0.md).
 `currentHits` may be `null`; DTE counters can be unreliable, so a separate
 `observedHits` value is available. Variable handles become `staleReference`
 after stepping or continuing.

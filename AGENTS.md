@@ -1,4 +1,4 @@
-# VS Codex Proxy — instrukcja dla agenta
+# VS Agent Proxy — instrukcja dla agenta
 
 To repozytorium zawiera rozszerzenie Visual Studio i klienta CLI, przez który agent
 może obserwować oraz sterować debugerem. Rozszerzenie musi być zainstalowane w VS,
@@ -13,16 +13,16 @@ Po połączeniu źródłem prawdy jest sam dodatek: wywołaj `capabilities`, a n
 Preferuj globalnie zainstalowaną komendę, która działa z dowolnego katalogu:
 
 ```powershell
-vscodex instances
-vscodex status
-vscodex capabilities
+vsagent instances
+vsagent status
+vsagent capabilities
 ```
 
 Jeśli narzędzie globalne nie jest zainstalowane, wykonuj polecenia z katalogu
 głównego repozytorium przez klienta projektowego:
 
 ```powershell
-$client = '.\src\VsCodexProxy.Client'
+$client = '.\src\VsAgentProxy.Client'
 dotnet run --project $client --no-build -- instances
 dotnet run --project $client --no-build -- status
 dotnet run --project $client --no-build -- capabilities
@@ -33,7 +33,7 @@ Jeśli działa kilka Visual Studio, najpierw pobierz `instances`, a potem jawnie
 PID właściwego procesu:
 
 ```powershell
-vscodex --pid 12345 status
+vsagent --pid 12345 status
 ```
 
 Bez `--pid` klient wybiera najnowszą instancję VS.
@@ -41,13 +41,13 @@ Bez `--pid` klient wybiera najnowszą instancję VS.
 ## Najczęstsza sesja debugowania
 
 ```powershell
-vscodex --pid 12345 start
-vscodex --pid 12345 status
-vscodex --pid 12345 stackTrace
-vscodex --pid 12345 locals --frameIndex 0 --maxDepth 1
-vscodex --pid 12345 arguments --frameIndex 0
-vscodex --pid 12345 output Debug 20000
-vscodex --pid 12345 stepOver
+vsagent --pid 12345 start
+vsagent --pid 12345 status
+vsagent --pid 12345 stackTrace
+vsagent --pid 12345 locals --frameIndex 0 --maxDepth 1
+vsagent --pid 12345 arguments --frameIndex 0
+vsagent --pid 12345 output Debug 20000
+vsagent --pid 12345 stepOver
 ```
 
 Sterowanie: `start`, `startWithoutDebugging`, `restart`, `continue`, `break`,
@@ -92,7 +92,7 @@ Breakpointy: `breakpointAdd`, `breakpointRemove`, `breakpointSetEnabled`,
 ## Budowanie
 
 ```powershell
-dotnet build .\src\VsCodexProxy.slnx
+dotnet build .\src\VsAgentProxy.slnx
 ```
 
-VSIX: `src\VsCodexProxy\bin\Debug\net472\VsCodexProxy.vsix`.
+VSIX: `src\VsAgentProxy\bin\Debug\net472\VsAgentProxy.vsix`.
