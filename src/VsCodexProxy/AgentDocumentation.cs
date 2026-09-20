@@ -7,7 +7,7 @@ namespace VsCodexProxy;
 
 internal static class AgentDocumentation
 {
-    internal const string Version = "0.6.1";
+    internal static string Version => typeof(AgentDocumentation).Assembly.GetName().Version?.ToString(3) ?? "unknown";
     private const string ResourceName = "VsCodexProxy.AgentProtocol.md";
 
     public static JObject GetCapabilities()

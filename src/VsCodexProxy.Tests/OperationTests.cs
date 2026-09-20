@@ -90,6 +90,14 @@ public sealed class OperationTests
         var profile = LaunchService.ConfiguredProfile(JObject.Parse("{'type':'chrome','url':'http://localhost:4200','env':{'SECRET':'value'}}"), "Chrome", "launch.json");
         Assert.Equal(JTokenType.Null, profile["active"]!.Type);
         Assert.Null(profile["env"]);
-        Assert.Equal("diskConfiguration", (string?)profile["sourceKind"]);
+    Assert.Equal("diskConfiguration", (string?)profile["sourceKind"]);
+    }
+
+    [Fact]
+    public void DocumentationVersionComesFromProxyAssembly()
+    {
+        var assemblyVersion = typeof(AgentDocumentation).Assembly.GetName().Version!.ToString(3);
+        Assert.Equal(assemblyVersion, (string?)AgentDocumentation.GetCapabilities()["version"]);
+        Assert.Equal(assemblyVersion, (string?)AgentDocumentation.GetDocumentation("short")["version"]);
     }
 }

@@ -27,7 +27,7 @@ from the repository:
 
 ```powershell
 dotnet pack .\src\VsCodexProxy.Client\VsCodexProxy.Client.csproj -c Release --no-restore
-dotnet tool install --global --configfile .\NuGet.Tool.config VsCodexProxy.Client --version 0.6.1
+dotnet tool install --global --configfile .\NuGet.Tool.config VsCodexProxy.Client --version 0.6.2
 ```
 
 Fallback without a global installation:
@@ -40,6 +40,7 @@ dotnet run --project .\src\VsCodexProxy.Client --no-build -- --pid 12345 status
 
 ```powershell
 vscodex instances
+vscodex --version
 vscodex --pid 12345 status
 ```
 
@@ -47,6 +48,7 @@ vscodex --pid 12345 status
 selects the candidate with the newest available Visual Studio process start
 time. Do not rely on automatic selection when more than one Visual Studio
 instance is running.
+Use `vscodex --version` to print the client version from its assembly metadata.
 
 ### Response format
 
@@ -536,4 +538,4 @@ src\VsCodexProxy\bin\Debug\net472\VsCodexProxy.vsix
 ```
 
 After changing the extension, install the new VSIX and restart Visual Studio.
-Current manifest version: `0.6.1`.
+Current manifest version: `0.6.2`.

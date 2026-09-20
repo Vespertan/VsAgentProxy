@@ -1,6 +1,6 @@
 # VS Codex Proxy
 
-Aktualna wersja: `0.6.1` (rozszerzenie i klient), kontrakt 2.
+Aktualna wersja: `0.6.2` (rozszerzenie i klient), kontrakt 2.
 
 Minimalny, lokalny most między Visual Studio a klientem automatyzacji. Rozszerzenie
 udostępnia przez Named Pipe wyłącznie jawną listę operacji:
@@ -45,13 +45,14 @@ Klienta można zainstalować globalnie:
 
 ```powershell
 dotnet pack .\src\VsCodexProxy.Client\VsCodexProxy.Client.csproj -c Release --no-restore
-dotnet tool install --global --configfile .\NuGet.Tool.config VsCodexProxy.Client --version 0.6.1
+dotnet tool install --global --configfile .\NuGet.Tool.config VsCodexProxy.Client --version 0.6.2
 ```
 
 Po instalacji preferowana forma wywołania to:
 
 ```powershell
 vscodex instances
+vscodex --version
 vscodex status
 vscodex stackTrace
 vscodex projects

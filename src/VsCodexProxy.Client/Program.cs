@@ -3,6 +3,7 @@ using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Reflection;
 
 try { return await RunAsync(args); }
 catch (ArgumentException exception) { Console.Error.WriteLine(exception.Message); return 1; }
@@ -10,6 +11,12 @@ catch (JsonException exception) { Console.Error.WriteLine("Invalid JSON: " + exc
 
 static async Task<int> RunAsync(string[] args)
 {
+    if (args.Length == 1 && (args[0] is "-v" or "--version" or "version"))
+    {
+        Console.WriteLine(ClientVersion());
+        return 0;
+    }
+
     if (args.Length == 0 || args[0] is "-h" or "--help")
     {
         Console.WriteLine(
@@ -61,6 +68,7 @@ static async Task<int> RunAsync(string[] args)
               vscodex stepOver | stepInto | stepOut | continue | break | stop
               vscodex --pid <visual-studio-pid> <command>
               vscodex instances
+              vscodex --version
             """);
         return 0;
     }
@@ -272,5 +280,7 @@ static IEnumerable<PipeInstance> DiscoverInstances()
 }
 
 static JsonSerializerOptions CreateJsonOptions() => new() { WriteIndented = true };
+
+static string ClientVersion() => Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "unknown";
 
 internal sealed record PipeInstance(int Pid, string Pipe, DateTime? StartedUtc);
