@@ -1,52 +1,54 @@
-# VS Codex Proxy — pełna dokumentacja dla agenta
+# VS Codex Proxy — full agent documentation
 
-## 1. Cel i architektura
+## 1. Purpose and architecture
 
-VS Codex Proxy jest lokalnym mostem pomiędzy agentem a Visual Studio. Rozszerzenie
-VSIX działa wewnątrz procesu `devenv.exe`, korzysta z EnvDTE na głównym wątku VS i
-udostępnia zamkniętą listę operacji przez Named Pipe. Nie udostępnia serwera TCP ani
-dowolnego `ExecuteCommand`.
+VS Codex Proxy is a local bridge between an agent and Visual Studio. The VSIX
+extension runs inside the `devenv.exe` process, uses EnvDTE on the Visual Studio
+main thread, and exposes a closed allow-list of operations through a named pipe.
+It does not expose a TCP server or an arbitrary `ExecuteCommand`.
 
-Każda instancja tworzy:
+Each instance creates:
 
 ```text
 pipe:       VsCodexProxy-{PID}
 descriptor: %LOCALAPPDATA%\VsCodexProxy\instances\{PID}.json
 ```
 
-Deskryptor zawiera `pid`, `pipe`, `solution`, `startedUtc` i `sessionId`.
-Ścieżka jest aktualizowana po otwarciu/zamknięciu rozwiązania. Klient sprawdza
-PID i sesję odpowiedzią `ping`; do jednoznacznego wyboru instancji używaj PID.
+The descriptor contains `pid`, `pipe`, `solution`, `startedUtc`, and
+`sessionId`. Its solution path is updated when a solution is opened or closed.
+The client checks the PID and session with a `ping` response; use an explicit
+PID to select an instance unambiguously.
 
-## 2. Klient CLI
+## 2. CLI client
 
-`vscodex` jest globalnym narzędziem .NET i może być uruchamiany z dowolnego
-katalogu. Instalacja z repozytorium:
+`vscodex` is a global .NET tool and can be run from any directory. Install it
+from the repository:
 
 ```powershell
 dotnet pack .\src\VsCodexProxy.Client\VsCodexProxy.Client.csproj -c Release --no-restore
 dotnet tool install --global --configfile .\NuGet.Tool.config VsCodexProxy.Client --version 0.6.0
 ```
 
-Fallback bez instalacji globalnej:
+Fallback without a global installation:
 
 ```powershell
 dotnet run --project .\src\VsCodexProxy.Client --no-build -- --pid 12345 status
 ```
 
-### Wybór instancji
+### Selecting an instance
 
 ```powershell
 vscodex instances
 vscodex --pid 12345 status
 ```
 
-Bez `--pid` klient wybiera deskryptor z najnowszym `startedUtc`. Nie polegaj na tym,
-gdy użytkownik ma więcej niż jedną instancję VS.
+Without `--pid`, the client selects the descriptor with the newest
+`startedUtc`. Do not rely on this when more than one Visual Studio instance is
+running.
 
-### Format odpowiedzi
+### Response format
 
-Sukces:
+Success:
 
 ```json
 {
@@ -56,56 +58,57 @@ Sukces:
 }
 ```
 
-Błąd:
+Error:
 
 ```json
 {
   "id": "request-id",
   "ok": false,
-  "error": "opis błędu"
+  "error": "error description"
 }
 ```
 
-Kody wyjścia klienta:
+Client exit codes:
 
-| Kod | Znaczenie |
+| Code | Meaning |
 |---:|---|
-| 0 | odpowiedź `ok: true` albo poprawne polecenie lokalne |
-| 1 | serwer zwrócił `ok: false` lub brak polecenia |
-| 2 | nie znaleziono wybranej instancji VS |
-| 3 | błąd połączenia lub timeout klienta |
-| 4 | timeout `waitForState` albo niepotwierdzony (`unknown`) wynik operacji |
+| 0 | response `ok: true`, or a valid local command |
+| 1 | server returned `ok: false`, or a command was missing |
+| 2 | selected Visual Studio instance was not found |
+| 3 | connection error or client timeout |
+| 4 | `waitForState` timeout, or an unconfirmed (`unknown`) operation result |
 
-`--wait true` po komendzie z `operationId` czeka na jej zakończenie; zwraca 1
-dla `failed`/`cancelled`, nawet gdy sam odczyt statusu miał `ok: true`.
-Limit połączenia: `--connectTimeoutMs 5000`, limit odpowiedzi:
-`--responseTimeoutMs 15000`, limit oczekiwania: `--waitTimeoutMs 120000`.
-Timeout nigdy nie oznacza anulowania operacji w IDE.
+`--wait true` after a command with an `operationId` waits for completion. It
+returns 1 for `failed` or `cancelled`, even when the status read itself had
+`ok: true`. Connection limit: `--connectTimeoutMs 5000`; response limit:
+`--responseTimeoutMs 15000`; wait limit: `--waitTimeoutMs 120000`. A timeout
+never cancels work in the IDE.
 
-Tablice podawaj jako powtarzalne `--path` dla `saveDocuments`/`setStartupProjects`,
-powtarzalne `--name` dla `projectProperties`, albo `--pathsJson '["C:/a.csproj"]'`.
-`--paramsJson` przyjmuje cały obiekt parametrów. Wartości opcji są obowiązkowe.
+Pass arrays as repeated `--path` options for `saveDocuments` and
+`setStartupProjects`, repeated `--name` options for `projectProperties`, or
+`--pathsJson '["C:/a.csproj"]'`. `--paramsJson` accepts the complete
+parameter object. Option values are required.
 
-## 3. Zalecany przebieg sesji
+## 3. Recommended session flow
 
-1. Wywołaj `instances` i wybierz PID.
-2. Wywołaj `status`.
-3. Jeśli trzeba, ustaw breakpointy przez `breakpointAdd`.
-4. Uruchom aplikację przez `start`.
-5. Po zatrzymaniu pobierz `stackTrace`, `locals`, `arguments` i Output.
-6. Steruj przez `stepOver`, `stepInto`, `stepOut` lub `continue`.
-7. Po każdej komendzie sterującej ponownie sprawdź `status`.
-8. Na końcu opcjonalnie usuń breakpointy proxy i wywołaj `stop`.
+1. Call `instances` and choose a PID.
+2. Call `status`.
+3. If needed, set breakpoints with `breakpointAdd`.
+4. Start the application with `start`.
+5. When execution stops, get `stackTrace`, `locals`, `arguments`, and Output.
+6. Control execution with `stepOver`, `stepInto`, `stepOut`, or `continue`.
+7. Query `status` again after every control command.
+8. Optionally remove proxy breakpoints and call `stop` at the end.
 
-Tryby zwracane przez `status`:
+Modes returned by `status`:
 
-- `dbgDesignMode` — brak aktywnego debugowania,
-- `dbgRunMode` — debugowany program działa,
-- `dbgBreakMode` — program jest zatrzymany.
+- `dbgDesignMode` — no active debugging session,
+- `dbgRunMode` — the debugged program is running,
+- `dbgBreakMode` — the program is stopped.
 
-## 4. Operacje odczytu
+## 4. Read operations
 
-### `capabilities` i `documentation`
+### `capabilities` and `documentation`
 
 ```powershell
 vscodex --pid 12345 capabilities
@@ -113,125 +116,132 @@ vscodex --pid 12345 documentation --level short
 vscodex --pid 12345 documentation --level full
 ```
 
-`capabilities` zwraca maszynowy katalog metod, parametrów, efektów ubocznych i
-ostrzeżeń. `documentation` zwraca Markdown osadzony w DLL rozszerzenia. Wersja
-`full` jest kopią tego dokumentu z chwili budowania VSIX i stanowi źródło prawdy
-dla aktualnie zainstalowanej wersji dodatku.
+`capabilities` returns a machine-readable catalog of methods, parameters,
+side effects, and warnings. `documentation` returns Markdown embedded in the
+extension DLL. The `full` version is a copy of this document from the time the
+VSIX was built and is the source of truth for the installed extension version.
 
 ### `ping`
 
-Bez parametrów. Zwraca wersję proxy i PID procesu VS.
+No parameters. Returns the proxy version and the Visual Studio process PID.
 
 ### `status`
 
-Bez parametrów. Zwraca:
+No parameters. Returns:
 
 ```json
 {
   "mode": "dbgBreakMode",
   "currentProcess": "Application.exe",
   "currentThread": "Main Thread",
-  "solution": "C:\\Projekt\\Application.sln"
+  "solution": "C:\\Project\\Application.sln"
 }
 ```
 
 ### `stackTrace`
 
-Bez parametrów. Zwraca ramki bieżącego wątku: `index`, `depth`, `isCurrent`,
-`function`, `module`, `moduleName`, `language`, `file`, `line`, `column`,
-`userCode`, `threadId` i `threadName`. `column` ma obecnie wartość `null`, ponieważ
-interfejs DTE stosu nie udostępnia kolumny instrukcji.
+No parameters. Returns frames for the current thread: `index`, `depth`,
+`isCurrent`, `function`, `module`, `moduleName`, `language`, `file`,
+`line`, `column`, `userCode`, `threadId`, and `threadName`. `column`
+is currently `null` because the DTE stack interface does not expose the
+instruction column.
 
-### `projects` (od 0.5.0)
+### `projects` (since 0.5.0)
 
 ```powershell
 vscodex --pid 12345 projects
 ```
 
-Zwraca `solution`, `isOpen`, `isFullyLoaded`, tablicę `projects`, wybór DTE
-`startupProjects`, `startupProjectsAvailable` i `readErrors`. Każdy projekt ma
-`id` (GUID w rozwiązaniu), `name`, `path`, `uniqueName`, `typeGuid` (typ projektu
-z DTE), `hierarchyTypeGuid` (typ elementu hierarchii), `type`
-(rozszerzenie pliku lub `solutionFolder`), `isSolutionFolder`, `isStartup`
-i `loadState`: `loaded`, `unloaded` albo `failed`.
+Returns `solution`, `isOpen`, `isFullyLoaded`, a `projects` array, the DTE
+`startupProjects` selection, `startupProjectsAvailable`, and `readErrors`.
+Each project has `id` (the solution GUID), `name`, `path`, `uniqueName`,
+`typeGuid` (the DTE project type), `hierarchyTypeGuid` (the hierarchy item
+type), `type` (file extension or `solutionFolder`), `isSolutionFolder`,
+`isStartup`, and `loadState`: `loaded`, `unloaded`, or `failed`.
 
-Stan `failed` wymaga `IVsHierarchy.IsFaulted == true`. `loadError` pochodzi
-z `FaultMessage`; pola `loadErrorAvailability`, `loadErrorSource` oraz
-`loadErrorUnavailableReason` informują o ograniczeniach providera.
-Niezaładowany projekt nie jest automatycznie uznawany za uszkodzony.
-`isStartup: null` oznacza niedostępny odczyt wyboru DTE.
+The `failed` state requires `IVsHierarchy.IsFaulted == true`. `loadError`
+comes from `FaultMessage`; `loadErrorAvailability`, `loadErrorSource`, and
+`loadErrorUnavailableReason` describe provider limitations. An unloaded
+project is not automatically considered broken. `isStartup: null` means that
+the DTE startup selection was unavailable.
 
-### `diagnostics` (od 0.5.0)
+### `diagnostics` (since 0.5.0)
 
 ```powershell
 vscodex --pid 12345 diagnostics --severity error --count 200
 vscodex --pid 12345 diagnostics --origin build --offset 0 --count 100
 vscodex --pid 12345 diagnostics --origin project-load
-vscodex --pid 12345 diagnostics --file C:\Projekt\app.html
+vscodex --pid 12345 diagnostics --file C:\Project\app.html
 ```
 
-Filtry: `severity` = `error|warning|message|unknown`, `origin` =
-`build|intellisense|project-load|unknown`, `project` = dokładna nazwa lub GUID,
-`file` = pełna ścieżka. Porównania projektu/pliku ignorują wielkość liter.
-`offset` >= 0, `count` = 1–2000 (domyślnie 200). Filtry łączone są przez AND.
+Filters: `severity` = `error|warning|message|unknown`, `origin` =
+`build|intellisense|project-load|unknown`, `project` = an exact name or GUID,
+and `file` = a full path. Project and file comparisons are case-insensitive.
+`offset` must be >= 0; `count` is 1–2000 (default 200). Filters are combined
+with AND.
 
-Odpowiedź: `items`, `offset`, `count`, `totalCount`, `hasMore`, `isStable`,
-`complete`, `providers`, `readErrors`, `capturedUtc`, `scope`, `limitations`.
-Element zawiera `severity`, `origin`, `source`, `sourceType`, `provider`,
-`project`, `projectId`, `file`, `line`, `column`, `code`, `message`; wpisy Error
-List dodatkowo `rawOrigin` i `buildTool`. Współrzędne są liczone od 1;
-niedostępne dane mają wartość null albo `unknown`.
+The response contains `items`, `offset`, `count`, `totalCount`, `hasMore`,
+`isStable`, `complete`, `providers`, `readErrors`, `capturedUtc`,
+`scope`, and `limitations`. An item contains `severity`, `origin`,
+`source`, `sourceType`, `provider`, `project`, `projectId`, `file`,
+`line`, `column`, `code`, and `message`; Error List entries additionally
+contain `rawOrigin` and `buildTool`. Coordinates are one-based; unavailable
+data is `null` or `unknown`.
 
-Odczyt obejmuje źródła Error List niezależnie od filtrów widocznego okna oraz
-aktualne błędy hierarchii projektów. Kategoria SDK `ErrorSource.Other` oznacza
-diagnostyki kompilacji wywołanej w tle i jest mapowana na `intellisense`;
-nie potwierdza to działania konkretnej usługi językowej. Błędy `project-load`
-nie mają odgadywanych kodów ani pozycji w pliku. Wpisy z różnych źródeł mogą
-opisywać ten sam problem; nie są automatycznie usuwane jako duplikaty.
+The read includes Error List sources regardless of the visible window filters,
+as well as current project hierarchy errors. The SDK category
+`ErrorSource.Other` represents background compilation diagnostics and is mapped
+to `intellisense`; this does not prove that a particular language service is
+running. `project-load` errors do not receive guessed codes or file positions.
+Entries from different sources may describe the same problem; duplicates are
+not removed automatically.
 
-Subskrypcje są utrzymywane między wywołaniami. Pierwsze wyniki mogą dotrzeć po
-odpowiedzi na pierwsze żądanie: sprawdzaj `isStable` i powtórz odczyt. `complete`
-oznacza brak wykrytych błędów odczytu, a nie ukończenie analizy IDE.
-Stronicowanie dotyczy bieżącego odczytu; dane mogą zmienić się między stronami.
-Odczyt nie otwiera dokumentów i nie wymusza ponownej analizy.
+Subscriptions are kept between calls. Initial results may arrive after the
+first request has returned: check `isStable` and read again. `complete` means
+that no read errors were detected, not that IDE analysis has finished.
+Pagination describes the current read; data may change between pages. Reading
+does not open documents or force another analysis.
 
-### `launchCheck` (od 0.5.0)
+### `launchCheck` (since 0.5.0)
 
 ```powershell
 vscodex --pid 12345 launchCheck
 ```
 
-Zwraca `canExecuteStartCommand` (true/false/null), `startAction`, `mode`,
-`buildState`, `configuration`, `lastBuildFailedProjects` (gdy build został
-ukończony), dostępność obu komend w `commands`, `reasons`
-z kodem, dowodem i pewnością, `reasonUnknown`, `projectState` i `readErrors`.
-Nie uruchamia aplikacji, nie buduje i nie zmienia projektu startowego.
+Returns `canExecuteStartCommand` (true/false/null), `startAction`, `mode`,
+`buildState`, `configuration`, `lastBuildFailedProjects` (when a build
+finished), availability of both commands in `commands`, `reasons` with a
+code, evidence, and confidence, `reasonUnknown`, `projectState`, and
+`readErrors`. It does not start or build the application and does not change
+the startup project.
 
-W break mode `Debug.Start` kontynuuje istniejącą sesję. `IsAvailable` nie
-gwarantuje powodzenia startu i nie udostępnia wewnętrznego powodu odmowy VS.
-`reasonUnknown` pozostaje true dla niedostępnej/nieodczytanej komendy nawet,
-jeśli wykryto możliwe przeszkody. Brak projektu w DTE ma pewność `suspected`,
-ponieważ inny provider uruchomienia może stosować własny wybór.
-Od 0.6.0 `launchProfilesAvailability: perProject` wskazuje osobny odczyt
-`launchProfiles(project)`. Dostępność i aktywny profil zależą od providera projektu.
+In break mode, `Debug.Start` continues the existing session. `IsAvailable`
+does not guarantee a successful start and does not expose Visual Studio's
+internal refusal reason. `reasonUnknown` remains true for an unavailable or
+unreadable command even when possible blockers were found. A missing DTE
+project has `suspected` confidence because another launch provider may use a
+different selection. Since 0.6.0, `launchProfilesAvailability: perProject`
+indicates the separate `launchProfiles(project)` read. Availability and the
+active profile depend on the project provider.
 
-### `locals` i `arguments`
+### `locals` and `arguments`
 
 ```powershell
 vscodex --pid 12345 locals --frameIndex 0 --maxDepth 2 --maxItems 200
 vscodex --pid 12345 arguments --frameIndex 0 --maxDepth 1 --maxItems 100
 ```
 
-Parametry:
+Parameters:
 
-| Parametr | Domyślnie | Zakres | Znaczenie |
+| Parameter | Default | Range | Meaning |
 |---|---:|---:|---|
-| `frameIndex` | 0 | >= 0 | zerowy indeks ramki stosu |
-| `maxDepth` | 1 | 0–3 | głębokość `DataMembers` |
-| `maxItems` | 100 | 1–500 | globalny limit zwracanych wyrażeń |
+| `frameIndex` | 0 | >= 0 | zero-based stack frame index |
+| `maxDepth` | 1 | 0–3 | `DataMembers` depth |
+| `maxItems` | 100 | 1–500 | global limit of returned expressions |
 
-Element zawiera `name`, `type`, `value`, `isValid` i opcjonalne `children` albo
-`childrenError`. `truncated: true` oznacza osiągnięcie limitu.
+An item contains `name`, `type`, `value`, `isValid`, and optional
+`children` or `childrenError`. `truncated: true` means that a limit was
+reached.
 
 ### `evaluate`
 
@@ -239,204 +249,216 @@ Element zawiera `name`, `type`, `value`, `isValid` i opcjonalne `children` albo
 vscodex --pid 12345 evaluate --expression "customer.Address.City" --timeoutMs 1000 --maxDepth 1 --maxItems 100
 ```
 
-Parametry: wymagane `expression`; opcjonalne `timeoutMs` (100–10000), `maxDepth`
-i `maxItems`. Ewaluacja odbywa się w bieżącej ramce debugera. Może uruchamiać
-gettery, przeciążenia debug display lub metody. Używaj jej tylko jawnie; do zwykłej
-inspekcji preferuj `locals` i `arguments`.
+Required parameter: `expression`. Optional parameters are `timeoutMs`
+(100–10000), `maxDepth`, and `maxItems`. Evaluation runs in the current
+debugger frame. It can run getters, debug-display overloads, or methods. Use it
+only deliberately; prefer `locals` and `arguments` for ordinary inspection.
 
 ### `activeDocument`
 
-Bez parametrów. Zwraca `available`, `name`, `path`, `line`, `column`,
-`selectedText` i `selectionTruncated`. Zaznaczenie jest ograniczone do 100000 znaków.
+No parameters. Returns `available`, `name`, `path`, `line`, `column`,
+`selectedText`, and `selectionTruncated`. Selection is limited to 100,000
+characters.
 
 ### `output`
 
-Lista paneli:
+List panes:
 
 ```powershell
 vscodex --pid 12345 output
 ```
 
-Końcówka panelu (zgodność wsteczna):
+Tail of a pane (backward-compatible form):
 
 ```powershell
 vscodex --pid 12345 output Debug 20000
 ```
 
-Zakres znaków:
+Character range:
 
 ```powershell
 vscodex --pid 12345 output Debug --offset 10000 --count 5000
 ```
 
-`count` musi mieścić się w zakresie 1–200000. Bez `offset` zwracane jest ostatnie `count`
-znaków. Odpowiedź zawiera `offset`, faktyczne `count`, `totalChars`,
-`hasMoreBefore` i `hasMoreAfter`.
+`count` must be in the range 1–200000. Without `offset`, the last `count`
+characters are returned. The response contains `offset`, the actual `count`,
+`totalChars`, `hasMoreBefore`, and `hasMoreAfter`.
 
-Od 0.5.0 lista dodatkowo zawiera `paneDetails: [{ name, id }]` z GUID-em panelu.
-Można użyć `--paneId <guid>` zamiast nazwy; podanie obu selektorów jest błędem.
-Odpowiedź odczytu zawiera `paneId` i `source` (`textBuffer` lub fallback `dte`).
-Pusty bufor zwraca `text: ""`, `count: 0`, `totalChars: 0`; nie jest odczytywany
-przez operację tekstową wymagającą niepustego zakresu. Błędu E_FAIL nie traktuje
-się automatycznie jako pustego bufora. `outputReadFailed` zawiera próbę odczytu
-bufora/DTE oraz HRESULT w `details.attempts`. `outputPaneNotFound` jest osobnym
-błędem. Jeśli VS nie utworzył jeszcze bufora i DTE zwraca E_FAIL, odczyt może
-przejściowo aktywować panel, po czym przywraca poprzedni panel, widoczność Output
-i aktywne okno. Odpowiedź oznacza to przez `paneInitialized: true`; ewentualne
-błędy przywracania trafiają do `restorationErrors`. Jeżeli wcześniej żaden panel
-nie był wybrany, nie ma wyboru do przywrócenia: `previousPaneAvailable` i
-`paneSelectionRestored` są false; pozostaje wybór odczytanego panelu, przy
-zachowanej widoczności Output i aktywnym oknie. Niepoprawne limity od 0.5.0 są odrzucane
-przez `invalidParameters`, zamiast niejawnego przycinania.
+Since 0.5.0, the list also contains `paneDetails: [{ name, id }]` with the
+pane GUID. Use `--paneId <guid>` instead of the name; specifying both
+selectors is an error. A read response contains `paneId` and `source`
+(`textBuffer` or the `dte` fallback). An empty buffer returns
+`text: ""`, `count: 0`, `totalChars: 0`; it is not read through a text
+operation that requires a non-empty range. E_FAIL is not automatically treated
+as an empty buffer. `outputReadFailed` contains a buffer/DTE read attempt and
+the HRESULT in `details.attempts`. `outputPaneNotFound` is a separate error.
+If Visual Studio has not created the buffer and DTE returns E_FAIL, the read may
+temporarily activate the pane and then restore the previous pane, Output
+visibility, and active window. The response reports this as
+`paneInitialized: true`; restoration failures go to `restorationErrors`. If
+no pane was selected previously, there is no selection to restore:
+`previousPaneAvailable` and `paneSelectionRestored` are false. The read pane
+remains selected while Output visibility and the active window are preserved.
+Invalid limits have been rejected with `invalidParameters` since 0.5.0 rather
+than being silently truncated.
 
 ### `breakpoints`
 
-Bez parametrów. Zwraca m.in. `id`, `index`, `enabled`, `file`, `line`, `column`,
-`function`, `condition`, `conditionType`, `currentHits`, `hitCount`,
-`hitCountType` i `locationType`.
+No parameters. Returns, among other fields, `id`, `index`, `enabled`,
+`file`, `line`, `column`, `function`, `condition`, `conditionType`,
+`currentHits`, `hitCount`, `hitCountType`, and `locationType`.
 
-`id` jest dostępne dla breakpointów utworzonych przez proxy. Breakpoint ręczny
-może mieć tylko `index`.
+`id` is available for breakpoints created by the proxy. A manually created
+breakpoint may have only an `index`.
 
-## 5. Sterowanie uruchomieniem
+## 5. Launch control
 
-Operacje bez parametrów:
+Operations without parameters:
 
-| Operacja | Działanie |
+| Operation | Action |
 |---|---|
-| `start` | uruchamia skonfigurowany projekt startowy z debugerem |
-| `startWithoutDebugging` | uruchamia projekt bez debugera |
-| `restart` | restartuje sesję debugowania |
-| `continue` | kontynuuje; w design mode zachowuje się jak start |
+| `start` | starts the configured startup project with the debugger |
+| `startWithoutDebugging` | starts the project without the debugger |
+| `restart` | restarts the debugging session |
+| `continue` | continues; in design mode it behaves like start |
 | `break` | Break All |
-| `stop` | kończy debugowanie |
+| `stop` | ends debugging |
 | `stepOver` | Step Over |
 | `stepInto` | Step Into |
 | `stepOut` | Step Out |
 
-Proxy przed wykonaniem sprawdza `Command.IsAvailable`. Niedostępna komenda zwraca
-`ok: false`. Odpowiedź `accepted: true` potwierdza wysłanie komendy do VS, a nie
-osiągnięcie nowego stanu — stan potwierdzaj przez `status`.
+Before executing, the proxy checks `Command.IsAvailable`. An unavailable
+command returns `ok: false`. `accepted: true` confirms that the command was
+sent to Visual Studio, not that a new state was reached; confirm the state with
+`status`.
 
-Od 0.5.0 niedostępna komenda zwraca dodatkowo `errorCode: commandUnavailable`
-oraz sugestię `launchCheck`. Obsłużone wyjątki zachowują tekst `error` i dodają
-`errorCode`, `hresult`, `details`. Nie każda starsza odpowiedź błędu ma te pola.
+Since 0.5.0, an unavailable command also returns `errorCode:
+commandUnavailable` and suggests `launchCheck`. Handled exceptions preserve
+the `error` text and add `errorCode`, `hresult`, and `details`. Some older
+error responses do not have these fields.
 
-## 6. Zarządzanie breakpointami
+## 6. Breakpoint management
 
-### Dodawanie — `breakpointAdd`
+### Adding — `breakpointAdd`
 
-Należy podać dokładnie jeden typ lokalizacji:
+Exactly one location type must be supplied:
 
-- `file` oraz opcjonalne `line` (domyślnie 1), `column` (domyślnie 1),
+- `file` and optional `line` (default 1) and `column` (default 1),
 - `function`,
-- `data` oraz opcjonalne `dataCount`,
+- `data` and optional `dataCount`,
 - `address`.
 
-Wspólne parametry:
+Common parameters:
 
-- `condition`: tekst warunku,
-- `conditionType`: `whenTrue` lub `whenChanged`,
-- `language`: opcjonalna nazwa języka,
-- `hitCount`: liczba trafień,
-- `hitCountType`: `none`, `equal`, `greaterOrEqual` lub `multiple`,
-- `enabled`: domyślnie `true`.
+- `condition`: condition text,
+- `conditionType`: `whenTrue` or `whenChanged`,
+- `language`: optional language name,
+- `hitCount`: hit count,
+- `hitCountType`: `none`, `equal`, `greaterOrEqual`, or `multiple`,
+- `enabled`: default `true`.
 
 ```powershell
-vscodex --pid 12345 breakpointAdd --file C:\Projekt\Program.cs --line 42 --condition "retryCount > 2" --conditionType whenTrue
+vscodex --pid 12345 breakpointAdd --file C:\Project\Program.cs --line 42 --condition "retryCount > 2" --conditionType whenTrue
 ```
 
-Odpowiedź jest tablicą, ponieważ VS może utworzyć kilka breakpointów, np. dla
-przeciążonej funkcji. Każdy otrzymuje osobne stabilne `id`.
+The response is an array because Visual Studio can create several breakpoints,
+for example for an overloaded function. Each receives a separate stable `id`.
 
-### Włączanie i wyłączanie — `breakpointSetEnabled`
+### Enable and disable — `breakpointSetEnabled`
 
 ```powershell
 vscodex --pid 12345 breakpointSetEnabled --id <id> --enabled false
 vscodex --pid 12345 breakpointSetEnabled --index 0 --enabled true
 ```
 
-### Kryteria — `breakpointSetCriteria`
+### Criteria — `breakpointSetCriteria`
 
 ```powershell
 vscodex --pid 12345 breakpointSetCriteria --id <id> --condition "retryCount > 5" --conditionType whenTrue --hitCount 3 --hitCountType greaterOrEqual
 ```
 
-Wszystkie parametry kryteriów są opcjonalne; niepodane zachowują dotychczasową
-wartość. Pusty `condition` usuwa warunek. Zmiana kryteriów jest obsługiwana dla
-breakpointów plikowych i funkcyjnych. DTE nie pozwala zmieniać tych pól bezpośrednio,
-więc proxy usuwa i odtwarza breakpoint, zachowując jego stan oraz ID.
+All criteria parameters are optional; omitted values retain their current
+values. An empty `condition` removes the condition. Criteria changes are
+supported for file and function breakpoints. DTE cannot change these fields
+directly, so the proxy removes and recreates the breakpoint while preserving its
+state and ID.
 
-### Usuwanie — `breakpointRemove`
+### Remove — `breakpointRemove`
 
 ```powershell
 vscodex --pid 12345 breakpointRemove --id <id>
 vscodex --pid 12345 breakpointRemove --index 0
 ```
 
-Preferuj `id`. `index` jest zerowy i niestabilny po dodaniu lub usunięciu elementu.
+Prefer `id`. `index` is zero-based and unstable after an item is added or
+removed.
 
-## 7. Surowy protokół Named Pipe
+## 7. Raw named-pipe protocol
 
-Klient wysyła jeden obiekt JSON w jednej linii UTF-8:
+The client sends one JSON object as one UTF-8 line:
 
 ```json
 {"id":"abc","method":"locals","params":{"frameIndex":0,"maxDepth":1}}
 ```
 
-Serwer odpowiada jedną linią JSON. Nazwy metod i parametrów są rozróżniane
-wielkością liter. Serwer obsługuje jednego podłączonego klienta naraz i po
-rozłączeniu przyjmuje kolejnego.
+The server responds with one JSON line. Method and parameter names are
+case-sensitive. The server handles one connected client at a time and accepts
+the next client after disconnection.
 
-## 8. Projekty, operacje i inspekcja od wersji 0.6.0
+## 8. Projects, operations, and inspection since 0.6.0
 
-### Dokumenty i konfiguracja uruchamiania
+### Documents and launch configuration
 
-| Metoda | Parametry | Zachowanie |
+| Method | Parameters | Behavior |
 |---|---|---|
-| `documents` | brak | Dokumenty RDT, ścieżka, projekt i `dirty: true/false/null`. `null` nie oznacza czystego dokumentu. |
-| `saveDocuments` | `paths: string[]` | Jawny zapis wybranych otwartych dokumentów, bez Save As; wyniki per plik i `allSaved`. Zapis wielu plików nie jest transakcją. |
-| `projectReload` | `path` | Design mode, brak build, w pełni załadowana solucja. Blokuje każdy brudny lub nieodczytany dokument, także współdzielony. Loaded: unload/load, unloaded/failed: reload. `loaded` opisuje odczyt wyniku. |
-| `startupProjects` | brak | `paths`, `uniqueNames`, dostępność i źródło DTE. |
-| `setStartupProjects` | `paths: string[]` | Waliduje całą listę i loaded, ustawia kolejność, sprawdza readback. Przy błędzie próbuje rollback i zwraca stan faktyczny. |
-| `launchProfiles` | `project: path\|guid` | Profile i aktywny wybór z menu IDE przez `IVsProjectCfgDebugTargetSelection`, także eksport CPS. `configuredProfiles` pochodzi osobno z plików; nie dowodzi aktywności. |
-| `selectLaunchProfile` | `project`, `name` | Tylko istniejący, jednoznaczny profil, w stanie idle. `accepted` potwierdza przyjęcie, `applied` readback. CPS publikuje asynchronicznie: ponów odczyt `launchProfiles`. |
-| `solutionLaunchProfiles` | brak | Profile `.slnLaunch` shared/user z aktywną nazwą, akcjami, kolejnością i celami debugowania. Odczyt live przez wersjonowany adapter VS 2026; zgodność jest jawna. |
-| `selectSolutionLaunchProfile` | `name`, `scope?` | Ustawia natywny profil i weryfikuje wszystkie akcje, kolejność oraz cele. `scope` rozstrzyga profile shared/user o tej samej nazwie; przy błędzie wykonywany jest rollback. |
-| `projectProperties` | `project`, `names: string[]` | Właściwości aktywnej konfiguracji przez `IVsBuildPropertyStorage`; błędy per właściwość. |
-| `configurations` | brak | Konfiguracje i platformy solucji, aktualny wybór. |
+| `documents` | none | RDT documents, path, project, and `dirty: true/false/null`. `null` does not mean a clean document. |
+| `saveDocuments` | `paths: string[]` | Explicitly saves selected open documents, without Save As; per-file results and `allSaved`. Saving multiple files is not a transaction. |
+| `projectReload` | `path` | Design mode, no build, fully loaded solution. Blocks every dirty or unreadable document, including shared documents. Loaded: unload/load; unloaded/failed: reload. `loaded` describes the readback result. |
+| `startupProjects` | none | `paths`, `uniqueNames`, availability, and DTE source. |
+| `setStartupProjects` | `paths: string[]` | Validates the complete list and loaded state, sets order, and verifies readback. On failure it attempts rollback and returns the actual state. |
+| `launchProfiles` | `project: path\|guid` | Profiles and the active menu selection through `IVsProjectCfgDebugTargetSelection`, including CPS export. `configuredProfiles` comes separately from files and does not prove active selection. |
+| `selectLaunchProfile` | `project`, `name` | Only an existing, unambiguous profile in idle state. `accepted` confirms acceptance; `applied` confirms readback. CPS publishes asynchronously: read `launchProfiles` again. |
+| `solutionLaunchProfiles` | none | Shared/user `.slnLaunch` profiles with active name, actions, order, and debug targets. Live read through the versioned Visual Studio 2026 adapter; compatibility is explicit. |
+| `selectSolutionLaunchProfile` | `name`, `scope?` | Sets the native profile and verifies every action, order, and target. `scope` disambiguates shared/user profiles with the same name; failures trigger rollback. |
+| `projectProperties` | `project`, `names: string[]` | Active-configuration properties through `IVsBuildPropertyStorage`; errors are reported per property. |
+| `configurations` | none | Solution configurations and platforms, plus the current selection. |
 
-`launchProfiles` rozróżnia właściwości obliczone przez MSBuild, konfigurację
-zapisaną na dysku i finalną komendę procesu. Nie udaje znajomości końcowych
-podstawień debug adaptera. Nie zwraca zmiennych środowiskowych profili.
+`launchProfiles` distinguishes values computed by MSBuild, configuration stored
+on disk, and the final process command. It does not pretend to know the final
+debug-adapter substitutions. Profile environment variables are not returned.
 
-### Operacje i zdarzenia
+### Operations and events
 
-`build`, `rebuild`, `clean`, `start`, `startWithoutDebugging`, `restart` zwracają
-`accepted` i `operationId`. `operationStatus --id <id>` zwraca stan `queued`,
-`running`, `succeeded`, `failed`, `cancelled` albo `unknown`; faza jest osobnym
-polem. Build potwierdzają zdarzenia `IVsUpdateSolutionEvents`, a start z debugerem
-zdarzenie run/break. To nie jest test gotowości HTTP. Dla Ctrl+F5 brak potwierdzenia
-procesu daje `unknown`. Brak zdarzenia kończącego przez 2 minuty daje `unknown`,
-bez anulowania pracy VS. `cancelBuild` korzysta z rzeczywistej obsługi anulowania.
+`build`, `rebuild`, `clean`, `start`, `startWithoutDebugging`, and
+`restart` return `accepted` and an `operationId`.
+`operationStatus --id <id>` returns `queued`, `running`, `succeeded`,
+`failed`, `cancelled`, or `unknown`; phase is a separate field. Builds are
+confirmed by `IVsUpdateSolutionEvents`, and debugger starts by run/break
+events. This is not an HTTP readiness test. For Ctrl+F5, failure to confirm a
+process produces `unknown`. No finishing event for two minutes produces
+`unknown`, without cancelling Visual Studio work. `cancelBuild` uses the
+actual cancellation support.
 
-Jednocześnie śledzona jest jedna operacja. Korelacja `exclusiveCommandWindow`
-oznacza powiązanie w oknie wysłanej komendy, nie identyfikator transakcji VS.
-Build bez aktywnej operacji ma źródło `external`. Ręczne działania użytkownika
-w trakcie oczekiwania mogą utrudnić korelację. Rejestr zachowuje maksymalnie 128
-operacji, przez godzinę, w ramach jednej sesji proxy.
+Only one operation is tracked at a time. `exclusiveCommandWindow` correlation
+means that the operation is associated with a command sent in the window; it is
+not a Visual Studio transaction ID. A build without an active operation has
+source `external`. Manual user actions while waiting can make correlation
+difficult. The registry keeps at most 128 operations for one hour in one proxy
+session.
 
-`events --afterSequence 0 --limit 100 [--sessionId <id>]` zwraca do 500 zdarzeń
-z bufora 512. Następny kursor to `nextSequence`. Sprawdzaj `historyLost` oraz
-`sessionChanged`. Historia obejmuje build, debugger, wyjątki, zmiany wykonane
-przez proxy oraz dostępne błędy/powiązania breakpointów z silnika. Są to zdarzenia
-obserwowane od subskrypcji; nie ma odtwarzania wcześniejszej historii ani push.
+`events --afterSequence 0 --limit 100 [--sessionId <id>]` returns up to 500
+events from a 512-event buffer. The next cursor is `nextSequence`. Check
+`historyLost` and `sessionChanged`. History includes build, debugger,
+exception, proxy changes, and available engine breakpoint binding/error events.
+These are events observed since subscription; earlier history is not replayed
+and there is no push channel.
 
-Przy ponawianiu mutacji używaj tego samego `idempotencyKey`. Proxy pamięta do 256
-odpowiedzi przez godzinę; klucz należy do sesji proxy. Ten sam klucz i inne
-parametry dają `idempotencyConflict`. `replayed: true` zwraca oryginalną odpowiedź,
-więc aktualny wynik operacji odczytaj przez `operationStatus`. Po restarcie proxy
-lub wygaśnięciu klucza najpierw sprawdź stan IDE — deduplikacja nie jest trwała.
+When retrying a mutation, use the same `idempotencyKey`. The proxy remembers up
+to 256 responses for one hour; the key belongs to the proxy session. The same
+key with different parameters returns `idempotencyConflict`. `replayed: true`
+returns the original response, so read the current operation result with
+`operationStatus`. After a proxy restart or key expiry, check the IDE state
+first; deduplication is not durable.
 
 ```powershell
 vscodex --pid 12345 build --wait true --idempotencyKey build-001
@@ -445,64 +467,69 @@ vscodex --pid 12345 waitForState --state break --waitTimeoutMs 60000
 vscodex --pid 12345 waitForState --operationId <id> --waitTimeoutMs 120000
 ```
 
-### Zmienne, breakpointy i kontekst
+### Variables, breakpoints, and context
 
-`scopes --frameIndex 0` zwraca uchwyty Locals/Arguments. `variables --reference
-<id> --offset 0 --count 100` stronicuje dzieci (limit 500). `hasChildren` jest
-niezależne od `isValid`: zakresy JS Module/Global często nie mają wartości
-skalarnej. Uchwyty wygasają po kroku, continue, restart, zakończeniu sesji lub
-zmianie kontekstu; użycie starego daje `staleReference`. Nie ma niejawnego
-`GetExpression`, ale enumeracja DTE może wywołać obliczenia po stronie adaptera.
+`scopes --frameIndex 0` returns Locals/Arguments handles.
+`variables --reference <id> --offset 0 --count 100` pages children (limit
+500). `hasChildren` is independent of `isValid`: JS Module/Global scopes
+often have no scalar value. Handles expire after step, continue, restart, the
+end of a session, or a context change; using an old one returns
+`staleReference`. There is no implicit `GetExpression`, but DTE enumeration
+may trigger adapter-side evaluation.
 
-`processes` zwraca procesy debugowane, `threads` wątki bieżącego programu w break
-mode, a `selectContext --threadId <id> --frameIndex 0` zmienia bieżący wątek/ramkę.
-`stopReason` podaje zaobserwowany powód zatrzymania i dostępne informacje wyjątku.
+`processes` returns debugged processes, `threads` returns current program
+threads in break mode, and `selectContext --threadId <id> --frameIndex 0`
+changes the current thread/frame. `stopReason` reports the observed stop
+reason and available exception information.
 
-Kontrakt 2: `breakpoints.currentHits` może być `null`, jeżeli odczyt się nie udał.
-Nawet niepusta wartość ma `currentHitsReliability: unverifiedAdapterCounter`;
-JS może zwracać zero po trafieniu. `observedHits` liczy zatrzymania zaobserwowane
-przez `DTE.AllBreakpointsLastHit` od `observedSinceUtc`, nie trafienia sprzed
-uruchomienia proxy ani tracepointy bez zatrzymania. `bindingState` i
-`boundLocations` pochodzą z DTE. Historyczne `bindingEvents` zawierają błędy
-i rozwiązane lokalizacje z silnika; są dopasowane po pliku/linii, nie tożsamości
-breakpointu. Starszy błąd może poprzedzać udane powiązanie. Pełna mapa source map
-pozostaje `unavailable`; rozwiązana lokalizacja TS nie jest całym mapowaniem.
+Contract 2: `breakpoints.currentHits` may be `null` when reading it failed.
+Even a non-empty value has `currentHitsReliability:
+unverifiedAdapterCounter`; JS can return zero after a hit. `observedHits`
+counts stops observed through `DTE.AllBreakpointsLastHit` since
+`observedSinceUtc`, excluding hits before the proxy started and tracepoints
+that did not stop. `bindingState` and `boundLocations` come from DTE.
+Historical `bindingEvents` contain engine errors and resolved locations and are
+matched by file/line, not breakpoint identity. An older error may precede a
+successful binding. The complete source-map is still `unavailable`; a resolved
+TypeScript location is not the complete mapping.
 
-### Diagnostyki dokumentu, snapshot i terminale
+### Document diagnostics, snapshots, and terminals
 
-`documentDiagnostics --path <plik>` filtruje Error List i dołącza stan edytora.
-`languageServiceStatus --path <plik>` zwraca content type, GUID usługi językowej,
-dirty i wersję snapshotu otwartego dokumentu. Nie otwiera dokumentu za użytkownika.
-Wersja aktywnego serwera i powiązanie wersji diagnostyk ze snapshotem są niedostępne.
-Content type HTML ani brak błędów nie dowodzą działania Angular Language Service.
+`documentDiagnostics --path <file>` filters Error List and adds editor state.
+`languageServiceStatus --path <file>` returns content type, language-service
+GUID, dirty state, and the open document snapshot version. It does not open a
+document for the user. The active server version and the relationship between
+diagnostic versions and snapshots are unavailable. HTML content type or no
+errors does not prove that Angular Language Service is running.
 
-`snapshot` zbiera status, projekty, launchCheck, dokumenty, 200 diagnostyk oraz
-końcówki Build/Debug po 4000 znaków. Sekcje mają czasy pobrania i błędy; odczyt
-całego IDE nie jest atomowy.
+`snapshot` collects status, projects, launchCheck, documents, 200 diagnostics,
+and the last 4000 characters of Build/Debug. Sections have read times and
+errors; a complete IDE read is not atomic.
 
-`terminals` zwraca jawną dostępność `unsupported` dla istniejących terminali JSPS,
-a `terminalOutput` błąd `unsupported`. Zweryfikowane API VS 2026
-`ITerminalService.GetTerminalGuidsAsync` wylicza jedynie terminale utworzone przez
-danego klienta usługi. Nie udostępnia historii, komendy ani exit code istniejącego
-terminala Angulara. Proxy nie zastępuje tych danych wyjściem panelu Output ani
-nie przechwytuje procesów uruchomionych inaczej.
+`terminals` explicitly reports `unsupported` for existing JSPS terminals, and
+`terminalOutput` returns an `unsupported` error. The verified Visual Studio
+2026 API `ITerminalService.GetTerminalGuidsAsync` enumerates only terminals
+created by that service client. It does not expose history, commands, or exit
+codes for an existing Angular terminal. The proxy does not replace those data
+with Output-pane text and does not intercept processes started elsewhere.
 
-Pozostałe ograniczenia: `evaluate` działa w bieżącej ramce, stos DTE nie podaje
-kolumny, a zmiana kryteriów breakpointów data/address nadal nie jest obsługiwana.
-Dostępność fault, profili i danych silnika zależy od providera. Pełne przeładowanie
-solucji, wybór procesu, Test Explorer i kontrola gotowości HTTP nie należą do tej wersji.
+Other limitations: `evaluate` operates in the current frame, the DTE stack
+does not provide a column, and changing criteria for data/address breakpoints
+is still unsupported. Fault, profile, and engine data availability depends on
+the provider. Full solution reload, process selection, Test Explorer, and HTTP
+readiness control are outside this version.
 
-## 9. Budowanie i aktualizacja
+## 9. Building and updating
 
 ```powershell
 dotnet build .\src\VsCodexProxy.slnx
 ```
 
-Wynik:
+Output:
 
 ```text
 src\VsCodexProxy\bin\Debug\net472\VsCodexProxy.vsix
 ```
 
-Po zmianie rozszerzenia zainstaluj nowy VSIX i uruchom Visual Studio ponownie.
-Aktualna wersja manifestu: `0.6.0`.
+After changing the extension, install the new VSIX and restart Visual Studio.
+Current manifest version: `0.6.0`.
