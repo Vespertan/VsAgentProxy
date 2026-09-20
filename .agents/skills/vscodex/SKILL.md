@@ -11,14 +11,11 @@ Named Pipe for direct JSON-lines communication.
 ## Discover and select an instance
 
 1. Run `vscodex instances`. The client enumerates `\\.\pipe\` and filters
-   `VsCodexProxy-{PID}`; it does not read PID descriptor files.
+   `VsCodexProxy-{PID}`.
 2. Use `--pid <PID>` when more than one Visual Studio instance is running.
 3. Use `vscodex --pid <PID> ping` explicitly when proxy version or session
    information is needed.
 4. Use `vscodex --version` to read the client version from its assembly.
-
-The CLI does not send an implicit `ping` before every operation. A pipe found
-during discovery is connected directly for the requested command.
 
 ## State and debugging
 
