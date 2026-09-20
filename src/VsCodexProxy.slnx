@@ -12,4 +12,5 @@
     <Deploy Solution="Debug|*" />
   </Project>
   <Project Path="VsCodexProxy.Client/VsCodexProxy.Client.csproj" />
+  <Project Path="VsCodexProxy.Tests/VsCodexProxy.Tests.csproj" />
 </Solution>

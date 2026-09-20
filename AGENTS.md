@@ -54,7 +54,12 @@ Sterowanie: `start`, `startWithoutDebugging`, `restart`, `continue`, `break`,
 `stop`, `stepOver`, `stepInto`, `stepOut`.
 
 Odczyt: `status`, `stackTrace`, `locals`, `arguments`, `evaluate`,
-`activeDocument`, `output`, `breakpoints`.
+`activeDocument`, `output`, `breakpoints`, `projects`, `diagnostics`, `launchCheck`.
+
+Gdy aplikacja nie startuje, zacznij od `launchCheck`, `projects` i
+`diagnostics --severity error`. `diagnostics` publikuje `isStable` i `readErrors`;
+pusty pierwszy odczyt nie dowodzi braku błędów. Listę paneli Output można odczytać
+z GUID-ami (`paneDetails`), a panel wskazać przez `output --paneId <guid>`.
 
 Breakpointy: `breakpointAdd`, `breakpointRemove`, `breakpointSetEnabled`,
 `breakpointSetCriteria`.
@@ -71,7 +76,18 @@ Breakpointy: `breakpointAdd`, `breakpointRemove`, `breakpointSetEnabled`,
 - Nie zakładaj, że `accepted: true` oznacza osiągnięcie kolejnego breakpointu.
   Po komendzie sterującej ponownie odpytaj `status`.
 - Klient zwraca kod `0` dla odpowiedzi `ok: true`, `1` dla błędu protokołu,
-  `2` gdy nie znaleziono instancji VS i `3` dla błędu połączenia.
+  `2` gdy nie znaleziono instancji VS, `3` dla błędu połączenia i `4` dla
+  przekroczonego oczekiwania lub niepotwierdzonej operacji. `--wait true` zwraca
+  kod `1` także dla operacji zakończonej jako failed/cancelled.
+- Od 0.6 używaj `operationStatus` lub `--wait true` dla build/start. Timeout nie
+  anuluje VS. Przy ponowieniu mutacji zachowaj `idempotencyKey` i sesję proxy.
+- Przed reload odczytaj `documents`; jawny zapis tylko wybranych plików przez
+  `saveDocuments --path <plik>`. Nie zapisuj wszystkich zmian automatycznie.
+- `selectLaunchProfile` publikuje asynchronicznie: sprawdź `launchProfiles`.
+- Zakresy JS/TS: `scopes`, następnie `variables`. `isValid: false` nie wyklucza
+  dzieci. Uchwyty wygasają po kroku/continue/zmianie kontekstu.
+- `observedHits` to trafienia zaobserwowane przez proxy, `currentHits` to
+  niezweryfikowany licznik adaptera. Sprawdzaj `bindingEvents` i ich czas.
 
 ## Budowanie
 

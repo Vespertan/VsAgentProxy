@@ -25,16 +25,44 @@ internal sealed class ProxyServer : IDisposable
 {
     private readonly DTE2 dte;
     private readonly JoinableTaskFactory joinableTaskFactory;
-    private readonly string solutionPath;
+    private string solutionPath;
+    private readonly DateTime startedUtc = DateTime.UtcNow;
+    private readonly OperationRegistry operations = new();
+    private readonly DocumentService documents;
+    private readonly IdeEvents ideEvents;
+    private readonly LaunchService launches;
+    private readonly SolutionLaunchService solutionLaunches;
+    private readonly DebugInspectionService inspection;
+    private readonly MutationCache mutations = new();
+    private readonly EngineEvents engineEvents;
     private readonly string pipeName;
     private readonly string descriptorPath;
     private Task? listener;
+    private readonly OutputService outputService;
+    private readonly ProjectService projectService;
+    private readonly DiagnosticsService diagnosticsService;
+    private readonly LaunchCheckService launchCheckService;
 
-    public ProxyServer(DTE2 dte, JoinableTaskFactory joinableTaskFactory, string solutionPath)
+    public ProxyServer(DTE2 dte, JoinableTaskFactory joinableTaskFactory, string solutionPath,
+        OutputService outputService, ProjectService projectService, DiagnosticsService diagnosticsService, DocumentService documents,
+        Microsoft.VisualStudio.Shell.Interop.IVsSolutionBuildManager2? buildManager,
+        Microsoft.VisualStudio.Shell.Interop.IVsDebugTargetSelectionService? targetSelection,
+        Microsoft.VisualStudio.Shell.Interop.IVsDebugger? debuggerService)
     {
         this.dte = dte;
         this.joinableTaskFactory = joinableTaskFactory;
         this.solutionPath = solutionPath;
+        this.outputService = outputService;
+        this.projectService = projectService;
+        this.diagnosticsService = diagnosticsService;
+        this.documents = documents;
+        ideEvents = new IdeEvents(dte, buildManager, operations);
+        launches = new LaunchService(projectService, buildManager, targetSelection);
+        solutionLaunches = new SolutionLaunchService(projectService, launches, documents);
+        inspection = new DebugInspectionService(dte, ideEvents);
+        engineEvents = new EngineEvents(debuggerService, joinableTaskFactory, operations);
+        ideEvents.SolutionChanged += UpdateSolutionDescriptor;
+        launchCheckService = new LaunchCheckService(dte, projectService);
         pipeName = "VsCodexProxy-" + DiagnosticsProcess.GetCurrentProcess().Id.ToString(CultureInfo.InvariantCulture);
 
         var directory = Path.Combine(
@@ -58,9 +86,18 @@ internal sealed class ProxyServer : IDisposable
             pid = DiagnosticsProcess.GetCurrentProcess().Id,
             pipe = pipeName,
             solution = solutionPath,
-            startedUtc = DateTime.UtcNow
+            startedUtc,
+            sessionId = operations.SessionId
         };
         File.WriteAllText(descriptorPath, JsonConvert.SerializeObject(descriptor, Formatting.Indented), Encoding.UTF8);
+    }
+
+    private void UpdateSolutionDescriptor()
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+        solutionPath = dte.Solution.FullName;
+        try { WriteDescriptor(); }
+        catch (IOException exception) { ActivityLog.TryLogWarning(nameof(VsCodexProxy), exception.Message); }
     }
 
     private async Task ListenAsync(CancellationToken cancellationToken)
@@ -114,15 +151,26 @@ internal sealed class ProxyServer : IDisposable
             try
             {
                 var request = JObject.Parse(line);
-                response = await DispatchAsync(request, cancellationToken).ConfigureAwait(false);
+                var parameters = request["params"] as JObject ?? new JObject();
+                var key = ProtocolSupport.String(parameters, "idempotencyKey");
+                if (key?.Length > 200) throw new ArgumentException("idempotencyKey must be at most 200 characters.");
+                response = key == null ? await DispatchAsync(request, cancellationToken).ConfigureAwait(false)
+                    : mutations.Find(key, request) ?? await DispatchAndRememberAsync(key, request, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception exception)
             {
-                response = Error(null, exception.Message);
+                response = Error(null, exception);
             }
 
             await writer.WriteLineAsync(response.ToString(Formatting.None)).ConfigureAwait(false);
         }
+    }
+
+    private async Task<JObject> DispatchAndRememberAsync(string key, JObject request, CancellationToken token)
+    {
+        var response = await DispatchAsync(request, token).ConfigureAwait(false);
+        mutations.Store(key, request, response);
+        return response;
     }
 
     private async Task<JObject> DispatchAsync(JObject request, CancellationToken cancellationToken)
@@ -131,15 +179,49 @@ internal sealed class ProxyServer : IDisposable
         var method = request.Value<string>("method") ?? string.Empty;
         var parameters = request["params"] as JObject ?? new JObject();
 
-        await joinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
-
         try
         {
+            // Table providers are thread-safe and may contain many entries. Do not
+            // enumerate their snapshots on Visual Studio's UI thread.
+            if (method == "diagnostics" || method == "documentDiagnostics")
+            {
+                if (method == "documentDiagnostics") parameters["file"] = ProtocolSupport.String(parameters, "path") ?? throw new ArgumentException("path is required.");
+                await joinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+                var projectErrors = new JArray();
+                var faults = new JArray();
+                var documentState = method == "documentDiagnostics" ? documents.LanguageStatus((string)parameters["file"]!) : null;
+                try { faults = ProjectService.FaultDiagnostics(projectService.Read()); }
+                catch (Exception exception) { projectErrors.Add(ProtocolSupport.ReadError("projectFaults", exception)); }
+                var diagnostics = await Task.Run(() => diagnosticsService.Read(parameters, faults, projectErrors), cancellationToken).ConfigureAwait(false);
+                if (documentState != null) diagnostics["document"] = documentState;
+                return Success(id, diagnostics);
+            }
+
+            if (method == "snapshot")
+            {
+                await joinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+                var snapshot = new JObject { ["sessionId"] = operations.SessionId, ["startedUtc"] = DateTime.UtcNow, ["atomic"] = false };
+                Capture(snapshot, "status", () => JObject.FromObject(GetStatus()));
+                Capture(snapshot, "projects", projectService.Read);
+                Capture(snapshot, "launchCheck", launchCheckService.Read);
+                Capture(snapshot, "documents", documents.Read);
+                foreach (var pane in new[] { "Build", "Debug" })
+                    Capture(snapshot, "output" + pane, () => outputService.Read(new JObject { ["pane"] = pane, ["count"] = 4000 }));
+                try { snapshot["diagnostics"] = await Task.Run(() => diagnosticsService.Read(new JObject { ["count"] = 200 }), cancellationToken).ConfigureAwait(false); }
+                catch (Exception exception) when (!(exception is OperationCanceledException)) { snapshot["diagnostics"] = new JObject { ["error"] = ProtocolSupport.ReadError("diagnostics", exception) }; }
+                snapshot["completedUtc"] = DateTime.UtcNow;
+                return Success(id, snapshot);
+            }
+
+            await joinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+            operations.Expire();
+            if (operations.Active != null && method is "projectReload" or "saveDocuments" or "setStartupProjects" or "selectLaunchProfile" or "selectSolutionLaunchProfile")
+                throw new ProxyException("operationInProgress", "Wait for the active operation before changing project state.", new JObject { ["operation"] = operations.Active.DeepClone() });
             object result;
             switch (method)
             {
                 case "ping":
-                    result = new { version = "0.4.0", pid = DiagnosticsProcess.GetCurrentProcess().Id };
+                    result = new { version = AgentDocumentation.Version, pid = DiagnosticsProcess.GetCurrentProcess().Id, sessionId = operations.SessionId };
                     break;
                 case "capabilities":
                     result = AgentDocumentation.GetCapabilities();
@@ -150,13 +232,47 @@ internal sealed class ProxyServer : IDisposable
                 case "status":
                     result = GetStatus();
                     break;
+                case "projects":
+                    result = projectService.Read();
+                    break;
+                case "documents": result = documents.Read(); break;
+                case "saveDocuments": result = documents.Save(parameters); break;
+                case "projectReload": result = projectService.Reload(parameters, documents); operations.Emit("projectReload", JObject.FromObject(result)); break;
+                case "startupProjects": result = projectService.Startup(); break;
+                case "setStartupProjects": result = projectService.SetStartup(parameters); operations.Emit("startupProjectsChanged", JObject.FromObject(result)); break;
+                case "projectProperties": result = projectService.Properties(parameters); break;
+                case "configurations": result = projectService.Configurations(); break;
+                case "build": result = ideEvents.Execute(method, "Build.BuildSolution"); break;
+                case "rebuild": result = ideEvents.Execute(method, "Build.RebuildSolution"); break;
+                case "clean": result = ideEvents.Execute(method, "Build.CleanSolution"); break;
+                case "cancelBuild": result = ideEvents.CancelBuild(); break;
+                case "operationStatus": result = operations.Status(ProtocolSupport.String(parameters, "id") ?? throw new ArgumentException("id is required.")); break;
+                case "events": result = operations.Events(parameters); break;
+                case "stopReason": result = ideEvents.StopReason; break;
+                case "launchProfiles": result = launches.Read(parameters); break;
+                case "selectLaunchProfile": result = launches.Select(parameters); operations.Emit("launchProfileChanged", JObject.FromObject(result)); break;
+                case "solutionLaunchProfiles": result = await solutionLaunches.ReadAsync(cancellationToken); break;
+                case "selectSolutionLaunchProfile": result = await solutionLaunches.SelectAsync(parameters, cancellationToken); operations.Emit("solutionLaunchProfileChanged", JObject.FromObject(result)); break;
+                case "languageServiceStatus": result = documents.LanguageStatus(ProtocolSupport.String(parameters, "path") ?? throw new ArgumentException("path is required.")); break;
+                case "terminals": result = TerminalSupport(); break;
+                case "terminalOutput": throw new ProxyException("unsupported", "Public VS terminal APIs do not expose existing terminals' output history.", TerminalSupport());
+                case "scopes": result = inspection.Scopes(parameters); break;
+                case "variables": result = inspection.Variables(parameters); break;
+                case "threads": result = inspection.Threads(); break;
+                case "processes": result = inspection.Processes(); break;
+                case "selectContext": result = inspection.SelectContext(parameters); break;
+                case "launchCheck":
+                    result = launchCheckService.Read();
+                    break;
                 case "stackTrace":
                     result = GetStackTrace();
                     break;
                 case "locals":
+                    inspection.RequireBreak();
                     result = GetFrameExpressions(parameters, arguments: false);
                     break;
                 case "arguments":
+                    inspection.RequireBreak();
                     result = GetFrameExpressions(parameters, arguments: true);
                     break;
                 case "evaluate":
@@ -181,35 +297,29 @@ internal sealed class ProxyServer : IDisposable
                     result = GetActiveDocument();
                     break;
                 case "output":
-                    var count = parameters.Value<int?>("count")
-                        ?? parameters.Value<int?>("maxChars")
-                        ?? 20000;
-                    result = GetOutput(
-                        parameters.Value<string>("pane"),
-                        parameters.Value<int?>("offset"),
-                        Math.Max(1, Math.Min(count, 200000)));
+                    result = outputService.Read(parameters);
                     break;
                 case "start":
-                    ExecuteDebuggerCommand("Debug.Start");
-                    result = new { accepted = true, mode = "debug" };
+                    result = ideEvents.Execute(method, "Debug.Start");
                     break;
                 case "startWithoutDebugging":
-                    ExecuteDebuggerCommand("Debug.StartWithoutDebugging");
-                    result = new { accepted = true, mode = "withoutDebugging" };
+                    result = ideEvents.Execute(method, "Debug.StartWithoutDebugging");
                     break;
                 case "restart":
-                    ExecuteDebuggerCommand("Debug.Restart");
-                    result = new { accepted = true };
+                    result = ideEvents.Execute(method, "Debug.Restart");
                     break;
                 case "stepOver":
+                    inspection.RequireBreak();
                     ExecuteDebuggerCommand("Debug.StepOver");
                     result = new { accepted = true };
                     break;
                 case "stepInto":
+                    inspection.RequireBreak();
                     ExecuteDebuggerCommand("Debug.StepInto");
                     result = new { accepted = true };
                     break;
                 case "stepOut":
+                    inspection.RequireBreak();
                     ExecuteDebuggerCommand("Debug.StepOut");
                     result = new { accepted = true };
                     break;
@@ -226,20 +336,30 @@ internal sealed class ProxyServer : IDisposable
                     result = new { accepted = true };
                     break;
                 default:
-                    return Error(id, "Unknown or disallowed method: " + method);
+                    throw new ProxyException("unknownMethod", "Unknown or disallowed method: " + method);
             }
 
-            return new JObject
-            {
-                ["id"] = id?.DeepClone(),
-                ["ok"] = true,
-                ["result"] = JToken.FromObject(result)
-            };
+            return Success(id, result);
         }
         catch (Exception exception)
         {
-            return Error(id, exception.Message);
+            return Error(id, exception);
         }
+    }
+
+    private static JObject TerminalSupport() => new()
+    {
+        ["availability"] = "unsupported", ["terminals"] = null,
+        ["unavailableReason"] = "ITerminalService.GetTerminalGuidsAsync lists only terminals created by that service client. It does not enumerate existing JSPS terminals; no public history/PID/exit-code reader is exposed.",
+        ["scope"] = "existingVisualStudioTerminals", ["outputAvailability"] = "unsupported",
+        ["suggestedRead"] = "processes and output (Output window only)"
+    };
+
+    private static void Capture(JObject snapshot, string name, Func<object> read)
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+        try { snapshot[name] = new JObject { ["capturedUtc"] = DateTime.UtcNow, ["value"] = JToken.FromObject(read()) }; }
+        catch (Exception exception) { snapshot[name] = new JObject { ["error"] = ProtocolSupport.ReadError(name, exception) }; }
     }
 
     private object GetStatus()
@@ -254,6 +374,9 @@ internal sealed class ProxyServer : IDisposable
             currentThread = thread?.Name,
             currentThreadId = thread?.ID,
             currentThreadName = thread?.Name,
+            buildState = SafeRead(() => { ThreadHelper.ThrowIfNotOnUIThread(); return dte.Solution.SolutionBuild.BuildState.ToString(); }),
+            sessionId = operations.SessionId,
+            stopGeneration = ideEvents.StopGeneration,
             solution = dte.Solution?.FullName ?? string.Empty
         };
     }
@@ -382,17 +505,16 @@ internal sealed class ProxyServer : IDisposable
             ["isValid"] = SafeRead(() => expression.IsValidValue, false)
         };
 
-        if (depth <= 0 || remaining <= 0)
-            return result;
-
         try
         {
             var members = expression.DataMembers;
-            if (members.Count > 0)
+            result["hasChildren"] = members.Count > 0;
+            if (members.Count > 0 && depth > 0 && remaining > 0)
                 result["children"] = SerializeExpressions(members, depth - 1, ref remaining, ref truncated);
         }
         catch (Exception exception)
         {
+            result["hasChildren"] = null;
             result["childrenError"] = exception.Message;
         }
         return result;
@@ -549,10 +671,10 @@ internal sealed class ProxyServer : IDisposable
     }
 
 #pragma warning disable VSTHRD010 // Guarded explicitly; analyzer does not follow the SafeRead lambdas.
-    private static JObject SerializeBreakpoint(DteBreakpoint breakpoint, int index)
+    private JObject SerializeBreakpoint(DteBreakpoint breakpoint, int index)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
-        return new JObject
+        var result = new JObject
         {
             ["id"] = GetBreakpointId(SafeRead(() => breakpoint.Tag)),
             ["index"] = index,
@@ -565,11 +687,14 @@ internal sealed class ProxyServer : IDisposable
             ["language"] = SafeRead(() => breakpoint.Language),
             ["condition"] = SafeRead(() => breakpoint.Condition),
             ["conditionType"] = SafeRead(() => breakpoint.ConditionType.ToString()),
-            ["currentHits"] = SafeRead(() => breakpoint.CurrentHits, 0),
             ["hitCount"] = SafeRead(() => breakpoint.HitCountTarget, 0),
             ["hitCountType"] = SafeRead(() => breakpoint.HitCountType.ToString()),
             ["locationType"] = SafeRead(() => breakpoint.LocationType.ToString())
         };
+        ideEvents.Breakpoints.Enrich(breakpoint, result);
+        result["bindingEvents"] = operations.BindingEvidence((string?)result["file"], (int?)result["line"] ?? 0);
+        result["bindingEventsNote"] = "Historical events matched by requested file and line, not breakpoint identity. Check event time and current DTE bindingState; older errors can precede successful binding.";
+        return result;
     }
 #pragma warning restore VSTHRD010
 
@@ -638,64 +763,26 @@ internal sealed class ProxyServer : IDisposable
         };
     }
 
-    private object GetOutput(string? requestedPane, int? requestedOffset, int count)
-    {
-        ThreadHelper.ThrowIfNotOnUIThread();
-        var output = dte.ToolWindows.OutputWindow;
-        var panes = new List<OutputWindowPane>();
-        foreach (OutputWindowPane pane in output.OutputWindowPanes)
-            panes.Add(pane);
-
-        if (string.IsNullOrWhiteSpace(requestedPane))
-        {
-            var names = new List<string>();
-            foreach (var pane in panes)
-                names.Add(pane.Name);
-            return new { panes = names.ToArray() };
-        }
-
-        OutputWindowPane? selected = null;
-        foreach (var pane in panes)
-        {
-            if (string.Equals(pane.Name, requestedPane, StringComparison.OrdinalIgnoreCase))
-            {
-                selected = pane;
-                break;
-            }
-        }
-        if (selected is null)
-            throw new InvalidOperationException("Output pane not found: " + requestedPane);
-
-        if (requestedOffset < 0)
-            throw new ArgumentOutOfRangeException("offset", "Offset cannot be negative.");
-
-        var document = selected.TextDocument;
-        var fullText = document.StartPoint.CreateEditPoint().GetText(document.EndPoint);
-        var offset = requestedOffset.HasValue
-            ? Math.Min(requestedOffset.Value, fullText.Length)
-            : Math.Max(0, fullText.Length - count);
-        var actualCount = Math.Min(count, fullText.Length - offset);
-        var text = fullText.Substring(offset, actualCount);
-
-        return new
-        {
-            pane = selected.Name,
-            text,
-            offset,
-            count = actualCount,
-            totalChars = fullText.Length,
-            hasMoreBefore = offset > 0,
-            hasMoreAfter = offset + actualCount < fullText.Length
-        };
-    }
-
     private void ExecuteDebuggerCommand(string command)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
         if (!dte.Commands.Item(command).IsAvailable)
-            throw new InvalidOperationException("Visual Studio command is not currently available: " + command);
+            throw new ProxyException("commandUnavailable", "Visual Studio command is not currently available: " + command,
+                new JObject { ["command"] = command, ["suggestedRead"] = command == "Debug.Start" || command == "Debug.StartWithoutDebugging" ? "launchCheck" : "status" });
+        ideEvents.Invalidate();
         dte.ExecuteCommand(command);
     }
+
+    private static JObject Success(JToken? id, object result) => new()
+    { ["id"] = id?.DeepClone(), ["ok"] = true, ["result"] = JToken.FromObject(result) };
+
+    private static JObject Error(JToken? id, Exception exception) => new()
+    {
+        ["id"] = id?.DeepClone(), ["ok"] = false, ["error"] = exception.Message,
+        ["errorCode"] = exception is ProxyException proxy ? proxy.Code : exception is ArgumentException ? "invalidParameters" : "ideOperationFailed",
+        ["hresult"] = "0x" + exception.HResult.ToString("X8"),
+        ["details"] = exception is ProxyException detailed ? detailed.Details : new JObject()
+    };
 
     private static JObject Error(JToken? id, string message) =>
         new()
@@ -707,6 +794,10 @@ internal sealed class ProxyServer : IDisposable
 
     public void Dispose()
     {
+        ThreadHelper.ThrowIfNotOnUIThread();
+        ideEvents.Dispose();
+        engineEvents.Dispose();
+        diagnosticsService.Dispose();
         try
         {
             if (File.Exists(descriptorPath))

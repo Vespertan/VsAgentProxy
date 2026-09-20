@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Id="VsCodexProxy.7f7132bd-3062-4f81-9359-aa0ebf755a19" Version="0.4.0" Language="en-US" Publisher="VsCodexProxy" />
+    <Identity Id="VsCodexProxy.7f7132bd-3062-4f81-9359-aa0ebf755a19" Version="0.6.0" Language="en-US" Publisher="VsCodexProxy" />
     <DisplayName>VS Codex Proxy</DisplayName>
     <Description xml:space="preserve">A local named-pipe bridge for debugger state, call stacks, Output panes and allow-listed debugger commands.</Description>
     <Tags>debugger, automation, codex, local</Tags>
