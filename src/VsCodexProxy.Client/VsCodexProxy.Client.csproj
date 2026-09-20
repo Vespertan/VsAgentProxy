@@ -9,16 +9,16 @@
     <ToolCommandName>vscodex</ToolCommandName>
     <PackageId>VsCodexProxy.Client</PackageId>
     <Version>0.6.2</Version>
-    <Authors>VsCodexProxy</Authors>
+    <Authors>Vespertan</Authors>
     <Description>Command-line client for the local VS Codex Proxy Visual Studio extension.</Description>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageOutputPath>..\..\artifacts</PackageOutputPath>
-    <CertificateThumbprint>45ce844059a76db21ab0516bab0f305a64befbd0</CertificateThumbprint>
+    <CertificateThumbprint>3f7b3157fb143dce9415ff90a8fbf03b6e321f7b</CertificateThumbprint>
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="..\..\README.md" Pack="true" PackagePath="" />
+    <None Include="README.md" Pack="true" PackagePath="" />
   </ItemGroup>
 
   <Target Name="SignOutput" AfterTargets="Build">
