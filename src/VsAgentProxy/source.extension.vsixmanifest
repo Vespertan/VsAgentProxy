@@ -5,7 +5,9 @@
     <DisplayName>VS Agent Proxy</DisplayName>
     <Description xml:space="preserve">Connect AI agents and automation clients to Visual Studio through a local Named Pipe. Inspect debugger state, processes, threads, stacks, locals, arguments, breakpoints, Output, documents, and diagnostics; manage projects, startup selections, and launch profiles; build, run, stop, and step through code through an explicit allow-list of operations. Requires the companion global .NET tool from NuGet: dotnet tool install --global VsAgentProxy.Client. Agent skill: https://github.com/Vespertan/VsAgentProxy/blob/main/.agents/skills/vsagent/SKILL.md.</Description>
     <MoreInfo>https://github.com/Vespertan/VsAgentProxy</MoreInfo>
-    <Tags>debugger, automation, ai, ai-agent, local-ai, codex, claude, openai, anthropic</Tags>
+    <Icon>Resources\VsAgentProxy.png</Icon>
+    <PreviewImage>Resources\VsAgentProxy.png</PreviewImage>
+    <Tags>debugger;automation;ai;ai-agent;local-ai;codex;claude;openai;anthropic</Tags>
   </Metadata>
   <Installation>
     <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0,19.0)">

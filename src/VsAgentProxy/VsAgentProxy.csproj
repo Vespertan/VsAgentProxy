@@ -24,6 +24,9 @@
     <None Update="source.extension.vsixmanifest">
       <SubType>Designer</SubType>
     </None>
+    <Content Include="Resources\VsAgentProxy.png">
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
     <EmbeddedResource Include="..\..\docs\AGENT_PROTOCOL.md" Link="AgentProtocol.md">
       <LogicalName>VsAgentProxy.AgentProtocol.md</LogicalName>
     </EmbeddedResource>
