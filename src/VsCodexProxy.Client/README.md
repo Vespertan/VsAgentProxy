@@ -29,3 +29,24 @@ vscodex --pid <PID> status
 Use the repository documentation for the complete protocol and command reference:
 
 https://github.com/Vespertan/VsCodexProxy
+
+## Optional Codex skill
+
+The optional skill teaches Codex how to use the Visual Studio proxy. Install it
+at:
+
+```text
+%USERPROFILE%\.agents\skills\vscodex\SKILL.md
+```
+
+PowerShell installation:
+
+```powershell
+$skillDir = Join-Path $env:USERPROFILE '.agents\skills\vscodex'
+New-Item -ItemType Directory -Force $skillDir | Out-Null
+Invoke-WebRequest `
+  -Uri 'https://raw.githubusercontent.com/Vespertan/VsCodexProxy/main/.agents/skills/vscodex/SKILL.md' `
+  -OutFile (Join-Path $skillDir 'SKILL.md')
+```
+
+Source file: [`.agents/skills/vscodex/SKILL.md`](https://github.com/Vespertan/VsCodexProxy/blob/main/.agents/skills/vscodex/SKILL.md)
