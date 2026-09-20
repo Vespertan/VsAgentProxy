@@ -56,7 +56,7 @@ public sealed class VsCodexProxyPackage : AsyncPackage
         var output = outputService as IVsOutputWindow;
         var dte = (DTE2)service;
         shutdown = new CancellationTokenSource();
-        server = new ProxyServer(dte, JoinableTaskFactory, dte.Solution?.FullName ?? string.Empty,
+        server = new ProxyServer(dte, JoinableTaskFactory,
             new OutputService(dte, output), new ProjectService(dte, solution), new DiagnosticsService(errorTable), new DocumentService(documentTable, editorAdapters), buildManager, targetSelection, debuggerService as IVsDebugger);
         server.Start(shutdown.Token);
     }

@@ -16,7 +16,7 @@ jako działające funkcje. Dalsza część dokumentu zachowuje pierwotne założ
 | JS/TS | Trafienie main.ts:3, bound oraz historyczne błędy/rozwiązane lokalizacje, observedHits, rozwijanie Module/Global, paginacja, staleReference po continue. |
 | Dokument i język | documentDiagnostics oraz snapshot/content type/GUID usługi; brak dowodu wersji aktywnego serwera ALS jest jawny. |
 | Terminale | Zbadane publiczne API VS 2026. Wylicza tylko terminale klienta usługi, nie istniejące JSPS; output/history/exit code zwracają unsupported. |
-| Ergonomia | Snapshot IDE, threads/processes/selectContext, stopReason, aktualizacja deskryptora i sprawdzanie ping/sesji. |
+| Ergonomia | Snapshot IDE, threads/processes/selectContext, stopReason, enumeracja Named Pipes i jawna diagnostyka ping/sesji. |
 
 Nieudostępnione przez obecną integrację: pełna mapa source map, wersja aktywnego
 ALS, historyczny Output istniejących terminali. Adapter `.slnLaunch` jest związany
@@ -161,7 +161,7 @@ Jeżeli terminal nie udostępnia historii, zwracać `unsupported` i zakres fakty
 | Średni, po etapie 4 | `modules` / `loadedScripts` | Pomaga ustalić, czy debugger załadował właściwy skrypt/moduł i czy są dane symboli lub mapowania. |
 | Później | Uruchamianie testów i wyniki Test Explorer | Osobny adapter z identyfikatorami operacji; przydatny po ustabilizowaniu build i diagnostyk. |
 
-Przy okazji etapu 0–1 poprawić wykrywanie instancji: aktualizować ścieżkę rozwiązania po jego zmianie, dodawać identyfikator sesji proxy i weryfikować odpowiedź `ping`, aby nie ufać wyłącznie istnieniu PID.
+Wykrywanie instancji opierać na enumeracji potoków `VsCodexProxy-{PID}`. `ping` pozostawić jako jawną diagnostykę wersji i sesji, bez wysyłania go przed każdą operacją.
 
 ## 10. Weryfikacja i podział dostaw
 

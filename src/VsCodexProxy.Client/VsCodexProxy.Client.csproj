@@ -8,7 +8,7 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <ToolCommandName>vscodex</ToolCommandName>
     <PackageId>VsCodexProxy.Client</PackageId>
-    <Version>0.6.0</Version>
+    <Version>0.6.1</Version>
     <Authors>VsCodexProxy</Authors>
     <Description>Command-line client for the local VS Codex Proxy Visual Studio extension.</Description>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>

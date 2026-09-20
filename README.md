@@ -1,6 +1,6 @@
 # VS Codex Proxy
 
-Aktualna wersja: `0.6.0` (rozszerzenie i klient), kontrakt 2.
+Aktualna wersja: `0.6.1` (rozszerzenie i klient), kontrakt 2.
 
 Minimalny, lokalny most między Visual Studio a klientem automatyzacji. Rozszerzenie
 udostępnia przez Named Pipe wyłącznie jawną listę operacji:
@@ -26,8 +26,8 @@ zwraca skróconą lub pełną dokumentację dla agenta osadzoną w DLL.
 
 Nie ma dowolnego `ExecuteCommand` ani serwera TCP. `evaluate` jest jawne;
 enumeracja zmiennych DTE również może wywołać obliczenia adaptera. Każda instancja
-Visual Studio tworzy własny pipe oraz deskryptor w
-`%LOCALAPPDATA%\VsCodexProxy\instances`.
+Visual Studio tworzy własny pipe o nazwie `VsCodexProxy-{PID}`. Klient wykrywa
+działające instancje przez enumerację Named Pipes i nie korzysta z plików PID.
 
 ## Budowanie i instalacja
 
@@ -45,7 +45,7 @@ Klienta można zainstalować globalnie:
 
 ```powershell
 dotnet pack .\src\VsCodexProxy.Client\VsCodexProxy.Client.csproj -c Release --no-restore
-dotnet tool install --global --configfile .\NuGet.Tool.config VsCodexProxy.Client --version 0.6.0
+dotnet tool install --global --configfile .\NuGet.Tool.config VsCodexProxy.Client --version 0.6.1
 ```
 
 Po instalacji preferowana forma wywołania to:
@@ -108,8 +108,10 @@ dotnet run --project .\src\VsCodexProxy.Client -- breakpointRemove --id 01234567
 ```
 
 Odpowiedzi są JSON-em, więc klient nadaje się również do wywoływania z narzędzi
-agenta. Jeśli działa kilka instancji VS, klient domyślnie wybiera najnowszą.
-Polecenie `instances` pokazuje wszystkie dostępne, a `--pid` pozwala wskazać konkretną.
+agenta. Jeśli działa kilka instancji VS, klient domyślnie wybiera proces o
+najnowszym czasie uruchomienia. Polecenie `instances` enumeruje dostępne pipe,
+a `--pid` pozwala wskazać konkretną instancję. Klient nie wysyła `ping`
+automatycznie przed każdą operacją; `ping` pozostaje osobną komendą diagnostyczną.
 
 Parametry `offset` i `count` są indeksami znaków. Odpowiedź `output` zawiera również
 `totalChars`, `hasMoreBefore` oraz `hasMoreAfter`, dzięki czemu duży panel można

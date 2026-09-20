@@ -7,17 +7,18 @@ extension runs inside the `devenv.exe` process, uses EnvDTE on the Visual Studio
 main thread, and exposes a closed allow-list of operations through a named pipe.
 It does not expose a TCP server or an arbitrary `ExecuteCommand`.
 
-Each instance creates:
+Each instance creates a named pipe:
 
 ```text
 pipe:       VsCodexProxy-{PID}
-descriptor: %LOCALAPPDATA%\VsCodexProxy\instances\{PID}.json
 ```
 
-The descriptor contains `pid`, `pipe`, `solution`, `startedUtc`, and
-`sessionId`. Its solution path is updated when a solution is opened or closed.
-The client checks the PID and session with a `ping` response; use an explicit
-PID to select an instance unambiguously.
+The client discovers active instances by enumerating `\\.\pipe\` and filtering
+the `VsCodexProxy-{PID}` pattern. The pipe name supplies the Visual Studio PID.
+Use an explicit PID to select an instance unambiguously. The selected pipe is
+connected directly for the requested operation; the client does not send an
+implicit `ping` before every command. Call `ping` explicitly when you need to
+inspect the proxy version or session.
 
 ## 2. CLI client
 
@@ -26,7 +27,7 @@ from the repository:
 
 ```powershell
 dotnet pack .\src\VsCodexProxy.Client\VsCodexProxy.Client.csproj -c Release --no-restore
-dotnet tool install --global --configfile .\NuGet.Tool.config VsCodexProxy.Client --version 0.6.0
+dotnet tool install --global --configfile .\NuGet.Tool.config VsCodexProxy.Client --version 0.6.1
 ```
 
 Fallback without a global installation:
@@ -42,9 +43,10 @@ vscodex instances
 vscodex --pid 12345 status
 ```
 
-Without `--pid`, the client selects the descriptor with the newest
-`startedUtc`. Do not rely on this when more than one Visual Studio instance is
-running.
+`instances` lists currently enumerated proxy pipes. Without `--pid`, the client
+selects the candidate with the newest available Visual Studio process start
+time. Do not rely on automatic selection when more than one Visual Studio
+instance is running.
 
 ### Response format
 
@@ -123,7 +125,9 @@ VSIX was built and is the source of truth for the installed extension version.
 
 ### `ping`
 
-No parameters. Returns the proxy version and the Visual Studio process PID.
+No parameters. Returns the proxy version, the Visual Studio process PID, and
+the current proxy session ID. The CLI keeps this as an explicit diagnostic
+operation; it is not sent automatically before every other command.
 
 ### `status`
 
@@ -532,4 +536,4 @@ src\VsCodexProxy\bin\Debug\net472\VsCodexProxy.vsix
 ```
 
 After changing the extension, install the new VSIX and restart Visual Studio.
-Current manifest version: `0.6.0`.
+Current manifest version: `0.6.1`.

@@ -1,5 +1,4 @@
 using System;
-using System.Globalization;
 using System.IO;
 using System.IO.Pipes;
 using System.Collections.Generic;
@@ -25,8 +24,6 @@ internal sealed class ProxyServer : IDisposable
 {
     private readonly DTE2 dte;
     private readonly JoinableTaskFactory joinableTaskFactory;
-    private string solutionPath;
-    private readonly DateTime startedUtc = DateTime.UtcNow;
     private readonly OperationRegistry operations = new();
     private readonly DocumentService documents;
     private readonly IdeEvents ideEvents;
@@ -36,14 +33,13 @@ internal sealed class ProxyServer : IDisposable
     private readonly MutationCache mutations = new();
     private readonly EngineEvents engineEvents;
     private readonly string pipeName;
-    private readonly string descriptorPath;
     private Task? listener;
     private readonly OutputService outputService;
     private readonly ProjectService projectService;
     private readonly DiagnosticsService diagnosticsService;
     private readonly LaunchCheckService launchCheckService;
 
-    public ProxyServer(DTE2 dte, JoinableTaskFactory joinableTaskFactory, string solutionPath,
+    public ProxyServer(DTE2 dte, JoinableTaskFactory joinableTaskFactory,
         OutputService outputService, ProjectService projectService, DiagnosticsService diagnosticsService, DocumentService documents,
         Microsoft.VisualStudio.Shell.Interop.IVsSolutionBuildManager2? buildManager,
         Microsoft.VisualStudio.Shell.Interop.IVsDebugTargetSelectionService? targetSelection,
@@ -51,7 +47,6 @@ internal sealed class ProxyServer : IDisposable
     {
         this.dte = dte;
         this.joinableTaskFactory = joinableTaskFactory;
-        this.solutionPath = solutionPath;
         this.outputService = outputService;
         this.projectService = projectService;
         this.diagnosticsService = diagnosticsService;
@@ -61,43 +56,13 @@ internal sealed class ProxyServer : IDisposable
         solutionLaunches = new SolutionLaunchService(projectService, launches, documents);
         inspection = new DebugInspectionService(dte, ideEvents);
         engineEvents = new EngineEvents(debuggerService, joinableTaskFactory, operations);
-        ideEvents.SolutionChanged += UpdateSolutionDescriptor;
         launchCheckService = new LaunchCheckService(dte, projectService);
-        pipeName = "VsCodexProxy-" + DiagnosticsProcess.GetCurrentProcess().Id.ToString(CultureInfo.InvariantCulture);
-
-        var directory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "VsCodexProxy",
-            "instances");
-        Directory.CreateDirectory(directory);
-        descriptorPath = Path.Combine(directory, DiagnosticsProcess.GetCurrentProcess().Id + ".json");
+        pipeName = "VsCodexProxy-" + DiagnosticsProcess.GetCurrentProcess().Id;
     }
 
     public void Start(CancellationToken cancellationToken)
     {
-        WriteDescriptor();
         listener = Task.Run(() => ListenAsync(cancellationToken), cancellationToken);
-    }
-
-    private void WriteDescriptor()
-    {
-        var descriptor = new
-        {
-            pid = DiagnosticsProcess.GetCurrentProcess().Id,
-            pipe = pipeName,
-            solution = solutionPath,
-            startedUtc,
-            sessionId = operations.SessionId
-        };
-        File.WriteAllText(descriptorPath, JsonConvert.SerializeObject(descriptor, Formatting.Indented), Encoding.UTF8);
-    }
-
-    private void UpdateSolutionDescriptor()
-    {
-        ThreadHelper.ThrowIfNotOnUIThread();
-        solutionPath = dte.Solution.FullName;
-        try { WriteDescriptor(); }
-        catch (IOException exception) { ActivityLog.TryLogWarning(nameof(VsCodexProxy), exception.Message); }
     }
 
     private async Task ListenAsync(CancellationToken cancellationToken)
@@ -798,14 +763,5 @@ internal sealed class ProxyServer : IDisposable
         ideEvents.Dispose();
         engineEvents.Dispose();
         diagnosticsService.Dispose();
-        try
-        {
-            if (File.Exists(descriptorPath))
-                File.Delete(descriptorPath);
-        }
-        catch (IOException)
-        {
-            // A stale descriptor is harmless; the client verifies the PID.
-        }
     }
 }

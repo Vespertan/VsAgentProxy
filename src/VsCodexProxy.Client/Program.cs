@@ -92,7 +92,7 @@ static async Task<int> RunAsync(string[] args)
 
     var instance = requestedPid.HasValue
         ? instances.FirstOrDefault(item => item.Pid == requestedPid.Value)
-        : instances.OrderByDescending(item => item.StartedUtc).FirstOrDefault();
+        : instances.OrderByDescending(item => item.StartedUtc ?? DateTime.MinValue).FirstOrDefault();
     if (instance is null)
     {
         Console.Error.WriteLine(requestedPid.HasValue
@@ -137,13 +137,9 @@ static async Task<int> RunAsync(string[] args)
 
     try
     {
-        var ping = await SendAsync(instance, Request("ping", new()), connectTimeout, responseTimeout);
-        if (ping["ok"]?.GetValue<bool>() != true || ping["result"]?["pid"]?.GetValue<int>() != instance.Pid
-            || (instance.SessionId != null && ping["result"]?["sessionId"]?.GetValue<string>() != instance.SessionId))
-            throw new IOException("The instance descriptor does not match the connected proxy session. Run instances again.");
         if (command == "waitForState")
             return await WaitAsync(instance, parameters["operationId"]?.GetValue<string>(), parameters["state"]?.GetValue<string>(), connectTimeout, responseTimeout, waitTimeout, pollMs);
-        var response = command == "ping" ? ping : await SendAsync(instance, request, connectTimeout, responseTimeout);
+        var response = await SendAsync(instance, request, connectTimeout, responseTimeout);
         if (wait && response["ok"]?.GetValue<bool>() == true && response["result"]?["operationId"] is JsonValue operationId)
             return await WaitAsync(instance, operationId.GetValue<string>(), null, connectTimeout, responseTimeout, waitTimeout, pollMs);
         Console.WriteLine(response.ToJsonString(CreateJsonOptions()));
@@ -204,7 +200,7 @@ static int TakeInteger(JsonObject values, string key, int fallback, int min, int
 
 static JsonObject Request(string method, JsonObject parameters) => new() { ["id"] = Guid.NewGuid().ToString("N"), ["method"] = method, ["params"] = parameters };
 
-static async Task<JsonObject> SendAsync(InstanceDescriptor instance, JsonObject request, int connectMs, int responseMs, CancellationToken cancellationToken = default)
+static async Task<JsonObject> SendAsync(PipeInstance instance, JsonObject request, int connectMs, int responseMs, CancellationToken cancellationToken = default)
 {
     await using var pipe = new NamedPipeClientStream(".", instance.Pipe, PipeDirection.InOut, PipeOptions.Asynchronous);
     using (var connect = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)) { connect.CancelAfter(connectMs); await pipe.ConnectAsync(connect.Token); }
@@ -217,7 +213,7 @@ static async Task<JsonObject> SendAsync(InstanceDescriptor instance, JsonObject 
     return JsonNode.Parse(response) as JsonObject ?? throw new IOException("Invalid proxy response.");
 }
 
-static async Task<int> WaitAsync(InstanceDescriptor instance, string? operationId, string? requestedState, int connectMs, int responseMs, int waitMs, int pollMs)
+static async Task<int> WaitAsync(PipeInstance instance, string? operationId, string? requestedState, int connectMs, int responseMs, int waitMs, int pollMs)
 {
     var state = requestedState switch { "break" => "dbgBreakMode", "run" => "dbgRunMode", "design" => "dbgDesignMode", _ => requestedState };
     if (operationId == null && state is not ("dbgBreakMode" or "dbgRunMode" or "dbgDesignMode")) throw new ArgumentException("Specify operationId or state break|run|design.");
@@ -239,36 +235,42 @@ static async Task<int> WaitAsync(InstanceDescriptor instance, string? operationI
     return 4;
 }
 
-static IEnumerable<InstanceDescriptor> DiscoverInstances()
+static IEnumerable<PipeInstance> DiscoverInstances()
 {
-    var directory = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "VsCodexProxy",
-        "instances");
-    if (!Directory.Exists(directory))
-        yield break;
-
-    foreach (var path in Directory.EnumerateFiles(directory, "*.json"))
+    const string prefix = "VsCodexProxy-";
+    IEnumerable<string> pipes;
+    try
     {
-        InstanceDescriptor? descriptor = null;
+        pipes = Directory.EnumerateFileSystemEntries(@"\\.\pipe\");
+    }
+    catch
+    {
+        yield break;
+    }
+
+    foreach (var path in pipes)
+    {
+        var pipe = Path.GetFileName(path);
+        if (!pipe.StartsWith(prefix, StringComparison.Ordinal)
+            || !int.TryParse(pipe[prefix.Length..], out var pid)
+            || pid <= 0)
+            continue;
+
+        DateTime? startedUtc = null;
         try
         {
-            descriptor = JsonSerializer.Deserialize<InstanceDescriptor>(
-                File.ReadAllText(path),
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-            if (descriptor is null)
-                continue;
-            Process.GetProcessById(descriptor.Pid);
+            using var process = Process.GetProcessById(pid);
+            startedUtc = process.StartTime.ToUniversalTime();
         }
         catch
         {
-            continue;
+            // The pipe is still a valid discovery result even when process metadata is unavailable.
         }
 
-        yield return descriptor;
+        yield return new PipeInstance(pid, pipe, startedUtc);
     }
 }
 
 static JsonSerializerOptions CreateJsonOptions() => new() { WriteIndented = true };
 
-internal sealed record InstanceDescriptor(int Pid, string Pipe, string Solution, DateTime StartedUtc, string? SessionId = null);
+internal sealed record PipeInstance(int Pid, string Pipe, DateTime? StartedUtc);
