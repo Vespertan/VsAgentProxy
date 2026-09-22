@@ -18,10 +18,6 @@ and launch-profile management, diagnostics, Output access, and execution control
 dotnet tool install --global VsAgentProxy.Client
 ```
 
-Version 0.7.0 renamed the product from VS Codex Proxy. Install this tool with
-the new VSIX; the former `vscodex` client does not connect to
-`VsAgentProxy-{PID}`.
-
 ## Quick start
 
 ```powershell

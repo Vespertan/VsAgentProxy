@@ -1,14 +1,15 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackAsTool>true</PackAsTool>
+    <PackAsToolShimRuntimeIdentifiers>win-x64;win-arm64;win-x86</PackAsToolShimRuntimeIdentifiers>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <ToolCommandName>vsagent</ToolCommandName>
     <PackageId>VsAgentProxy.Client</PackageId>
-    <Version>0.7.1</Version>
+    <Version>0.7.5</Version>
     <Authors>Vespertan</Authors>
     <Description>Command-line client for the local VS Agent Proxy Visual Studio extension.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -28,5 +29,23 @@
 
   <Target Name="SignOutput" AfterTargets="Build">
     <SignFile CertificateThumbprint="$(CertificateThumbprint)" SigningTarget="$(TargetDir)$(TargetName).dll" TimestampUrl="$(TimestampUrl)" Condition="Exists('$(TargetDir)$(TargetName).dll')" />
+    <SignFile CertificateThumbprint="$(CertificateThumbprint)" SigningTarget="$(TargetDir)$(TargetName).exe" TimestampUrl="$(TimestampUrl)" Condition="Exists('$(TargetDir)$(TargetName).exe')" />
+  </Target>
+
+  <Target Name="SignGeneratedToolShims" AfterTargets="GenerateShimsAssets">
+    <ItemGroup>
+      <_GeneratedToolShimToSign Include="@(_EmbeddedApphostPaths->Distinct())" />
+    </ItemGroup>
+    <SignFile CertificateThumbprint="$(CertificateThumbprint)" SigningTarget="%(_GeneratedToolShimToSign.Identity)" TimestampUrl="$(TimestampUrl)" Condition="'%(_GeneratedToolShimToSign.Extension)' == '.exe'" />
+  </Target>
+
+  <!-- Tool packages consume publish output, including the prebuilt installation shims. -->
+  <Target Name="SignPublishOutput" AfterTargets="CopyFilesToPublishDirectory">
+    <ItemGroup>
+      <_PublishedFileToSign Include="$(PublishDir)$(TargetName).dll" Condition="Exists('$(PublishDir)$(TargetName).dll')" />
+      <_PublishedFileToSign Include="$(PublishDir)$(TargetName).exe" Condition="Exists('$(PublishDir)$(TargetName).exe')" />
+      <_PublishedFileToSign Include="$(PublishDir)shims\**\$(ToolCommandName).exe" />
+    </ItemGroup>
+    <SignFile CertificateThumbprint="$(CertificateThumbprint)" SigningTarget="%(_PublishedFileToSign.Identity)" TimestampUrl="$(TimestampUrl)" Condition="'@(_PublishedFileToSign)' != ''" />
   </Target>
 </Project>
