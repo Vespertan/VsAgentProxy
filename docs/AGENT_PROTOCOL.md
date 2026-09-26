@@ -418,7 +418,7 @@ the next client after disconnection.
 | Method | Parameters | Behavior |
 |---|---|---|
 | `documents` | none | RDT documents, path, project, and `dirty: true/false/null`. `null` does not mean a clean document. |
-| `saveDocuments` | `paths: string[]` | Explicitly saves selected open documents, without Save As; per-file results and `allSaved`. Saving multiple files is not a transaction. |
+| `saveDocuments` | `paths: string[]` | Explicitly saves selected open documents, including solution/project documents owned by an IDE hierarchy, without Save As. Checks the dirty state after saving; per-file results and `allSaved`. Saving multiple files is not a transaction. |
 | `projectReload` | `path` | Design mode, no build, fully loaded solution. Blocks every dirty or unreadable document, including shared documents. Loaded: unload/load; unloaded/failed: reload. `loaded` describes the readback result. |
 | `startupProjects` | none | `paths`, `uniqueNames`, availability, and DTE source. |
 | `setStartupProjects` | `paths: string[]` | Validates the complete list and loaded state, sets order, and verifies readback. On failure it attempts rollback and returns the actual state. |
@@ -428,6 +428,13 @@ the next client after disconnection.
 | `selectSolutionLaunchProfile` | `name`, `scope?` | Sets the native profile and verifies every action, order, and target. `scope` disambiguates shared/user profiles with the same name; failures trigger rollback. |
 | `projectProperties` | `project`, `names: string[]` | Active-configuration properties through `IVsBuildPropertyStorage`; errors are reported per property. |
 | `configurations` | none | Solution configurations and platforms, plus the current selection. |
+
+`saveDocuments` uses an exact RDT document cookie for hierarchy-owned documents
+that do not expose `IVsPersistDocData` (for example the loaded `.slnx` solution).
+This does not save child documents or unrelated projects. A save response can
+have `ok: true` while individual saves fail: always check `allSaved` and each
+document's `saved`/`error` fields. Unknown or unreadable post-save state is not
+reported as a successful save.
 
 `launchProfiles` distinguishes values computed by MSBuild, configuration stored
 on disk, and the final process command. It does not pretend to know the final

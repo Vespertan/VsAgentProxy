@@ -119,16 +119,46 @@ internal sealed class DocumentService
             IntPtr data = IntPtr.Zero;
             try
             {
-                ErrorHandler.ThrowOnFailure(table!.GetDocumentInfo((uint)item["cookie"]!, out _, out _, out _, out var path, out _, out _, out data));
+                var cookie = (uint)item["cookie"]!;
+                // A nil cookie would turn a targeted RDT save into a broader operation.
+                if (cookie == 0) throw new InvalidOperationException("Document has no valid running document cookie.");
+                ErrorHandler.ThrowOnFailure(table!.GetDocumentInfo(cookie, out _, out _, out _, out var path, out _, out _, out data));
                 if (!string.Equals(path, (string?)item["path"], StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Document changed before save.");
-                if (data == IntPtr.Zero || !(Marshal.GetObjectForIUnknown(data) is IVsPersistDocData document)) throw new InvalidOperationException("Document does not support saving.");
-                ErrorHandler.ThrowOnFailure(document.SaveDocData(VSSAVEFLAGS.VSSAVE_SilentSave, out var savedPath, out var cancelled));
-                ErrorHandler.ThrowOnFailure(document.IsDocDataDirty(out var dirty));
-                results.Add(new JObject { ["path"] = path, ["savedPath"] = savedPath, ["saved"] = cancelled == 0 && dirty == 0, ["cancelled"] = cancelled != 0 });
+                if (data != IntPtr.Zero && Marshal.GetObjectForIUnknown(data) is IVsPersistDocData document)
+                {
+                    ErrorHandler.ThrowOnFailure(document.SaveDocData(VSSAVEFLAGS.VSSAVE_SilentSave, out var savedPath, out var cancelled));
+                    ErrorHandler.ThrowOnFailure(document.IsDocDataDirty(out var dirty));
+                    results.Add(new JObject { ["path"] = path, ["savedPath"] = savedPath, ["saved"] = cancelled == 0 && dirty == 0, ["cancelled"] = cancelled != 0 });
+                }
+                else
+                {
+                    // Solution/project documents can be persisted by their owning hierarchy
+                    // without exposing IVsPersistDocData. Let the shell route the exact cookie.
+                    results.Add(SaveThroughRunningDocumentTable(table, cookie, path));
+                }
             }
             catch (Exception exception) { results.Add(new JObject { ["path"] = item["path"], ["saved"] = false, ["error"] = ProtocolSupport.ReadError("save", exception) }); }
             finally { if (data != IntPtr.Zero) Marshal.Release(data); }
         }
         return new JObject { ["documents"] = results, ["allSaved"] = results.All(x => (bool?)x["saved"] == true) };
+    }
+
+    internal static JObject SaveThroughRunningDocumentTable(IVsRunningDocumentTable table, uint cookie, string path)
+    {
+        if (cookie == 0) throw new InvalidOperationException("Document has no valid running document cookie.");
+        if (!(table is IVsRunningDocumentTable4 current))
+            throw new InvalidOperationException("Document save requires Running Document Table state verification.");
+        if (!current.IsMonikerValid(path) || current.GetDocumentCookie(path) != cookie)
+            throw new InvalidOperationException("Document changed before save.");
+        var options = (uint)__VSRDTSAVEOPTIONS.RDTSAVEOPT_SaveNoChildren
+            | (uint)__VSRDTSAVEOPTIONS2.RDTSAVEOPT_SkipNewUnsaved
+            | (uint)__VSRDTSAVEOPTIONS3.RDTSAVEOPT_SilentSave;
+        var hr = table.SaveDocuments(options, null, VSConstants.VSITEMID_NIL, cookie);
+        ErrorHandler.ThrowOnFailure(hr);
+        if (!current.IsMonikerValid(path) || current.GetDocumentCookie(path) != cookie)
+            throw new InvalidOperationException("Document changed during save; saved state could not be verified.");
+        current.UpdateDirtyState(cookie);
+        return new JObject { ["path"] = path, ["savedPath"] = null,
+            ["saved"] = hr == VSConstants.S_OK && !current.IsDocumentDirty(cookie), ["cancelled"] = hr == VSConstants.S_FALSE };
     }
 }
