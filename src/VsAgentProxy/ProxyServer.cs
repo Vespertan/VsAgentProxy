@@ -34,6 +34,9 @@ internal sealed class ProxyServer : IDisposable
     private readonly EngineEvents engineEvents;
     private readonly string pipeName;
     private Task? listener;
+    private int clientConnected;
+    private DateTime? startedUtc;
+    private string? lastConnectionError;
     private readonly OutputService outputService;
     private readonly ProjectService projectService;
     private readonly DiagnosticsService diagnosticsService;
@@ -62,7 +65,35 @@ internal sealed class ProxyServer : IDisposable
 
     public void Start(CancellationToken cancellationToken)
     {
+        startedUtc = DateTime.UtcNow;
         listener = Task.Run(() => ListenAsync(cancellationToken), cancellationToken);
+    }
+
+    public string GetStatusText()
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+        var task = listener;
+        var state = task == null ? "Not started" : task.IsFaulted ? "Faulted"
+            : task.IsCompleted ? "Stopped" : "Running";
+        var solution = SafeRead(() => { ThreadHelper.ThrowIfNotOnUIThread(); return dte.Solution.FullName; }, "Unavailable");
+        var mode = SafeRead(() => { ThreadHelper.ThrowIfNotOnUIThread(); return dte.Debugger.CurrentMode.ToString(); }, "Unavailable");
+        var pid = DiagnosticsProcess.GetCurrentProcess().Id;
+        var text = new StringBuilder()
+            .AppendLine("Version: " + AgentDocumentation.Version)
+            .AppendLine("Server: " + state)
+            .AppendLine("Client: " + (Volatile.Read(ref clientConnected) != 0 ? "Connected" : "None connected"))
+            .AppendLine("Pipe: \\\\.\\pipe\\" + pipeName)
+            .AppendLine("Visual Studio PID: " + pid)
+            .AppendLine("Started (UTC): " + (startedUtc?.ToString("yyyy-MM-dd HH:mm:ss") ?? "Not started"))
+            .AppendLine("Session: " + operations.SessionId)
+            .AppendLine()
+            .AppendLine("Solution: " + (string.IsNullOrEmpty(solution) ? "None open" : solution))
+            .AppendLine("Debugger: " + mode);
+        var error = task?.Exception?.GetBaseException().Message ?? Volatile.Read(ref lastConnectionError);
+        if (error != null) text.AppendLine().AppendLine("Last connection error: " + error);
+        return text.AppendLine().AppendLine("Check from a terminal:")
+            .AppendLine($"vsagent --pid {pid} status")
+            .AppendLine().Append("Snapshot at opening. Press Ctrl+C to copy.").ToString();
     }
 
     private async Task ListenAsync(CancellationToken cancellationToken)
@@ -74,6 +105,7 @@ internal sealed class ProxyServer : IDisposable
             try
             {
                 await pipe.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
+                Volatile.Write(ref clientConnected, 1);
                 await ServeClientAsync(pipe, cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -86,7 +118,12 @@ internal sealed class ProxyServer : IDisposable
             }
             catch (Exception exception)
             {
+                Volatile.Write(ref lastConnectionError, exception.Message);
                 ActivityLog.TryLogError(nameof(VsAgentProxy), exception.ToString());
+            }
+            finally
+            {
+                Volatile.Write(ref clientConnected, 0);
             }
         }
     }

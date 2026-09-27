@@ -18,9 +18,14 @@
     <PackageReference Include="Microsoft.VisualStudio.ProjectSystem" Version="17.9.380" ExcludeAssets="runtime" />
     <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2120" PrivateAssets="all" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Vespertan.VsExtensionsHub.Contracts" Version="1.1.0" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
+    <VSCTCompile Include="Commands.vsct">
+      <ResourceName>Menus.ctmenu</ResourceName>
+    </VSCTCompile>
+    <Reference Include="System.Design" />
     <None Update="source.extension.vsixmanifest">
       <SubType>Designer</SubType>
     </None>

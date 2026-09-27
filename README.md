@@ -31,13 +31,26 @@ active instances by enumerating Named Pipes and does not use PID descriptor file
 
 ## Build and install
 
+Building requires the `Vespertan.VsExtensionsHub.Contracts` 1.1.0 NuGet package
+from a configured package source (on the development workstation:
+`LocalVespertanNuget`). It supplies shared menu identifiers at build time only.
+
 ```powershell
 dotnet build ./src/VsAgentProxy.slnx
 ```
 
-Install the generated `.vsix` from
+Install **Vespertan Extensions Hub 1.3.0 or newer (below 2.0)** first, then the generated `.vsix` from
 `src/VsAgentProxy/bin/Debug/net472`. Restart Visual Studio afterwards; the
 extension starts in the background.
+
+**Extensions → Vespertan → Agent Proxy status** displays the pipe path, Visual
+Studio PID, extension version, server/client state, start time, session ID,
+solution, debugger mode, and a CLI command for that instance. The dialog is a
+snapshot taken when opened; Ctrl+C copies its contents. The VSIX dependency
+uses the Hub's stable installation ID `Vespertan.VisualStudio.ExtensionHost`.
+Contracts and the Hub have independent versions: Contracts 1.1.0 is a build-time
+dependency; Hub 1.3.0 is the separately installed VSIX providing the shared menu
+and its native Visual Studio 2026 settings. The proxy does not bundle the Hub DLL.
 
 ## Client
 

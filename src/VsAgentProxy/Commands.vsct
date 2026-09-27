@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable">
+  <Include href="VespertanMenuIds.vsct" />
+  <Commands package="guidAgentProxyPackage">
+    <Buttons>
+      <Button guid="guidAgentProxyCommandSet" id="StatusCommand" priority="0x0100" type="Button">
+        <Parent guid="guidVespertanCommandSet" id="VespertanRootGroup" />
+        <Strings>
+          <ButtonText>Agent Proxy status</ButtonText>
+          <CommandName>Vespertan.AgentProxyStatus</CommandName>
+        </Strings>
+      </Button>
+    </Buttons>
+  </Commands>
+  <Symbols>
+    <GuidSymbol name="guidAgentProxyPackage" value="{7b8f6fcc-9bc7-472e-8dbe-75f32de824ec}" />
+    <GuidSymbol name="guidAgentProxyCommandSet" value="{f087fb30-94d9-476f-a1c0-b0198c674f2f}">
+      <IDSymbol name="StatusCommand" value="0x0100" />
+    </GuidSymbol>
+  </Symbols>
+</CommandTable>
