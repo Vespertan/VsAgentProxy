@@ -9,13 +9,18 @@ using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.ComponentModelHost;
 using Microsoft.VisualStudio.Shell.TableManager;
+using Microsoft.ServiceHub.Framework;
+using Microsoft.VisualStudio.Shell.ServiceBroker;
+using Vespertan.VsExtensionsHub.Services.Contracts;
+using VsAgentProxy.Contracts;
 using Task = System.Threading.Tasks.Task;
 
 namespace VsAgentProxy;
 
 [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
 [ProvideMenuResource("Menus.ctmenu", 1)]
-[InstalledProductRegistration("VS Agent Proxy", "Local debugger automation bridge", "0.7")]
+[ProvideBrokeredService(AgentServices.Name, AgentServices.Version, Audience = ServiceAudience.Local | ServiceAudience.PublicSdk)]
+[InstalledProductRegistration("VS Agent Proxy", "Local debugger automation bridge", "0.8")]
 [ProvideAutoLoad(VSConstants.UICONTEXT.ShellInitialized_string, PackageAutoLoadFlags.BackgroundLoad)]
 [Guid(PackageGuidString)]
 public sealed class VsAgentProxyPackage : AsyncPackage
@@ -24,8 +29,11 @@ public sealed class VsAgentProxyPackage : AsyncPackage
     private static readonly Guid CommandSet = new("f087fb30-94d9-476f-a1c0-b0198c674f2f");
     private const int StatusCommandId = 0x0100;
 
-    private CancellationTokenSource? shutdown;
-    private ProxyServer? server;
+    private AgentService? server;
+    private IDisposable? serviceRegistration;
+#pragma warning disable ISB001 // AsyncPackage.Dispose(bool) below releases this proxy before the shared service.
+    private IExternalServiceRegistration? externalRegistration;
+#pragma warning restore ISB001
 
     protected override async Task InitializeAsync(CancellationToken cancellationToken, IProgress<ServiceProgressData> progress)
     {
@@ -63,10 +71,17 @@ public sealed class VsAgentProxyPackage : AsyncPackage
         var targetSelection = targetService as IVsDebugTargetSelectionService;
         var output = outputService as IVsOutputWindow;
         var dte = (DTE2)service;
-        shutdown = new CancellationTokenSource();
-        server = new ProxyServer(dte, JoinableTaskFactory,
+        server = new AgentService(dte, JoinableTaskFactory,
             new OutputService(dte, output), new ProjectService(dte, solution), new DiagnosticsService(errorTable), new DocumentService(documentTable, editorAdapters), buildManager, targetSelection, debuggerService as IVsDebugger);
-        server.Start(shutdown.Token);
+        var container = await GetServiceAsync(typeof(SVsBrokeredServiceContainer)) as IBrokeredServiceContainer
+            ?? throw new InvalidOperationException("Visual Studio service broker is unavailable.");
+        serviceRegistration = container.Proffer(AgentServices.Agent,
+            (_, _, _, _) => new ValueTask<object?>(new AgentServiceSession(server)));
+        externalRegistration?.Dispose();
+        externalRegistration = await container.GetFullAccessServiceBroker().GetProxyAsync<IExternalServiceRegistration>(
+            HubServices.ExternalServiceRegistration, cancellationToken: cancellationToken)
+            ?? throw new InvalidOperationException("Vespertan Extensions Hub 1.5 or newer is required.");
+        await externalRegistration.RegisterAsync(AgentServices.Name, AgentServices.Version, cancellationToken);
     }
 
     private void ShowStatus(object sender, EventArgs args)
@@ -83,9 +98,13 @@ public sealed class VsAgentProxyPackage : AsyncPackage
         ThreadHelper.ThrowIfNotOnUIThread();
         if (disposing)
         {
-            shutdown?.Cancel();
+            if (externalRegistration != null)
+            {
+                externalRegistration.Dispose();
+                externalRegistration = null;
+            }
+            serviceRegistration?.Dispose();
             server?.Dispose();
-            shutdown?.Dispose();
         }
 
         base.Dispose(disposing);

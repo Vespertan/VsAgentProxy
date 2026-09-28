@@ -3,13 +3,13 @@
 `VsAgentProxy.Client` is the .NET global tool client for the VS Agent Proxy
 Visual Studio extension.
 
-It connects to a running Visual Studio instance through the extension's local
-Named Pipe and exposes the `vsagent` command for debugger inspection, project
+It connects to a running Visual Studio instance through Vespertan Extensions Hub's local
+multiplexed RPC endpoint and exposes the `vsagent` command for debugger inspection, project
 and launch-profile management, diagnostics, Output access, and execution control.
 
 ## Requirements
 
-- Visual Studio with the VS Agent Proxy extension installed and running.
+- Visual Studio with Hub 1.5+ and VsAgentProxy 0.8+ installed and running.
 - .NET 10 SDK or runtime for the global tool.
 
 ## Install
@@ -24,6 +24,8 @@ dotnet tool install --global VsAgentProxy.Client
 vsagent instances
 vsagent --version
 vsagent --pid <PID> status
+vsagent --pid <PID> selection
+vsagent --pid <PID> watchSelection --durationMs 60000
 ```
 
 Use the repository documentation for the complete protocol and command reference:

@@ -5,13 +5,13 @@ description: Use when working with a running Visual Studio instance through vsag
 
 # Visual Studio through vsagent
 
-Use the `vsagent` CLI as the default client. The proxy also exposes a local
-Named Pipe when direct JSON-lines communication is required.
+Use the `vsagent` CLI as the default client. The CLI connects to the central
+Vespertan Extensions Hub RPC endpoint (Hub 1.5+, proxy/client 0.8+).
 
 ## Start
 
 1. Run `vsagent instances` and select the Visual Studio PID. It enumerates
-   `VsAgentProxy-{PID}` named pipes.
+   `VsExtensionsHub-{PID}` named pipes and checks Hub/VsAgent readiness.
 2. Check the selected instance:
 
    ```powershell
@@ -41,6 +41,7 @@ the CLI does not ping before every operation.
 Use `capabilities` and the runtime documentation for project, startup-project,
 launch-profile, diagnostics, and Output method names and parameters.
 
-If the CLI is unavailable, enumerate `\\.\pipe\VsAgentProxy-*` and connect to
-the selected pipe. Send one UTF-8 JSON object per line and read one response
-per line.
+For Solution Explorer selection use `selection`, or `watchSelection --durationMs 60000`
+for an initial snapshot and subsequent events. These call Hub directly, without VsAgentProxy.
+If the installed CLI is older, use the matching client from this repository.
+Do not send JSON lines directly to the pipe: it carries multiplexed broker RPC.

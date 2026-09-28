@@ -14,6 +14,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../VsAgentProxy.Contracts/VsAgentProxy.Contracts.csproj" />
+    <PackageReference Include="Vespertan.VsExtensionsHub.Services.Contracts" Version="1.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" ExcludeAssets="runtime" />
     <PackageReference Include="Microsoft.VisualStudio.ProjectSystem" Version="17.9.380" ExcludeAssets="runtime" />
     <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2120" PrivateAssets="all" />

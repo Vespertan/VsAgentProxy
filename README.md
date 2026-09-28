@@ -1,9 +1,10 @@
 # VS Agent Proxy
 
-Current version: `0.7.1` (extension and client), contract version 2.
+Current version: `0.8.0` (extension and client), contract version 2.
 
 VS Agent Proxy is a local bridge between Visual Studio and automation clients.
-The extension exposes an explicit allow-list of operations through a Named Pipe:
+The extension publishes an explicit allow-list of operations through the central
+Vespertan Extensions Hub RPC endpoint:
 
 - debugger state and the current process/thread,
 - loaded and unloaded projects, project-system load errors, and startup-project selection,
@@ -26,7 +27,7 @@ The extension is self-describing: `capabilities` returns the API catalog, and
 
 There is no arbitrary `ExecuteCommand` and no TCP server. `evaluate` is explicit;
 enumerating DTE variables can also trigger adapter-side evaluation. Each Visual
-Studio instance creates a pipe named `VsAgentProxy-{PID}`. The client discovers
+Studio instance has a Hub pipe named `VsExtensionsHub-{PID}`. The client discovers
 active instances by enumerating Named Pipes and does not use PID descriptor files.
 
 ## Build and install
@@ -39,17 +40,17 @@ from a configured package source (on the development workstation:
 dotnet build ./src/VsAgentProxy.slnx
 ```
 
-Install **Vespertan Extensions Hub 1.3.0 or newer (below 2.0)** first, then the generated `.vsix` from
+Install **Vespertan Extensions Hub 1.5.0 or newer (below 2.0)** first, then the generated `.vsix` from
 `src/VsAgentProxy/bin/Debug/net472`. Restart Visual Studio afterwards; the
 extension starts in the background.
 
 **Extensions → Vespertan → Agent Proxy status** displays the pipe path, Visual
-Studio PID, extension version, server/client state, start time, session ID,
+Studio PID, extension version, service registration, start time, session ID,
 solution, debugger mode, and a CLI command for that instance. The dialog is a
 snapshot taken when opened; Ctrl+C copies its contents. The VSIX dependency
 uses the Hub's stable installation ID `Vespertan.VisualStudio.ExtensionHost`.
 Contracts and the Hub have independent versions: Contracts 1.1.0 is a build-time
-dependency; Hub 1.3.0 is the separately installed VSIX providing the shared menu
+dependency; Hub 1.5.0 is the separately installed VSIX providing the shared menu
 and its native Visual Studio 2026 settings. The proxy does not bundle the Hub DLL.
 
 ## Client
@@ -58,12 +59,16 @@ Install the client globally:
 
 ```powershell
 dotnet pack ./src/VsAgentProxy.Client/VsAgentProxy.Client.csproj -c Release --no-restore
-dotnet tool install --global --configfile ./NuGet.Tool.config VsAgentProxy.Client --version 0.7.1
+dotnet tool install --global --configfile ./NuGet.Tool.config VsAgentProxy.Client --version 0.8.0
 ```
 
-Version 0.7.0 renamed the product from VS Codex Proxy. Install the new VSIX
-and `VsAgentProxy.Client`; the former `vscodex` client does not connect to
-the new `VsAgentProxy-{PID}` pipe.
+Version 0.8 requires Hub 1.5+ and the 0.8 CLI. The old JSON-lines pipe is removed.
+The proxy registers `Vespertan.VsAgent/1.0`; Hub owns transport and routes service
+requests. `instances` verifies Hub health and VsAgent availability separately.
+Runtime dependencies are `Vespertan.VsExtensionsHub.Services.Contracts` 1.1.0
+and (CLI only) `Vespertan.VsExtensionsHub.Client` 1.0.2 from LocalVespertanNuget.
+Hub service commands: `hubStatus`, `selection`, `solutionTree`, and
+`watchSelection --durationMs 60000` (Ctrl+C stops listening).
 
 After installation, these are the preferred commands:
 

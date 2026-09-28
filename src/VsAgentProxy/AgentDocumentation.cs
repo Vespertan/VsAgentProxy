@@ -75,8 +75,8 @@ internal static class AgentDocumentation
         {
             ["version"] = Version,
             ["contractVersion"] = 2,
-            ["protocol"] = "json-lines/named-pipe",
-            ["pipePattern"] = "VsAgentProxy-{visualStudioPid}",
+            ["protocol"] = "json-rpc/multiplexed-named-pipe",
+            ["pipePattern"] = "VsExtensionsHub-{visualStudioPid}",
             ["methodNamesCaseSensitive"] = true,
             ["recommendedFirstCalls"] = new JArray("status", "capabilities"),
             ["methods"] = methods,

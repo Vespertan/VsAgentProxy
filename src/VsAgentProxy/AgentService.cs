@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.IO.Pipes;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -20,7 +19,7 @@ using DteStackFrame2 = EnvDTE90a.StackFrame2;
 
 namespace VsAgentProxy;
 
-internal sealed class ProxyServer : IDisposable
+internal sealed class AgentService : IDisposable
 {
     private readonly DTE2 dte;
     private readonly JoinableTaskFactory joinableTaskFactory;
@@ -32,17 +31,15 @@ internal sealed class ProxyServer : IDisposable
     private readonly DebugInspectionService inspection;
     private readonly MutationCache mutations = new();
     private readonly EngineEvents engineEvents;
-    private readonly string pipeName;
-    private Task? listener;
-    private int clientConnected;
-    private DateTime? startedUtc;
-    private string? lastConnectionError;
+    private readonly SemaphoreSlim requestGate = new(1, 1);
+    private readonly CancellationTokenSource shutdown = new();
+    private readonly DateTime startedUtc = DateTime.UtcNow;
     private readonly OutputService outputService;
     private readonly ProjectService projectService;
     private readonly DiagnosticsService diagnosticsService;
     private readonly LaunchCheckService launchCheckService;
 
-    public ProxyServer(DTE2 dte, JoinableTaskFactory joinableTaskFactory,
+    public AgentService(DTE2 dte, JoinableTaskFactory joinableTaskFactory,
         OutputService outputService, ProjectService projectService, DiagnosticsService diagnosticsService, DocumentService documents,
         Microsoft.VisualStudio.Shell.Interop.IVsSolutionBuildManager2? buildManager,
         Microsoft.VisualStudio.Shell.Interop.IVsDebugTargetSelectionService? targetSelection,
@@ -60,112 +57,47 @@ internal sealed class ProxyServer : IDisposable
         inspection = new DebugInspectionService(dte, ideEvents);
         engineEvents = new EngineEvents(debuggerService, joinableTaskFactory, operations);
         launchCheckService = new LaunchCheckService(dte, projectService);
-        pipeName = "VsAgentProxy-" + DiagnosticsProcess.GetCurrentProcess().Id;
-    }
-
-    public void Start(CancellationToken cancellationToken)
-    {
-        startedUtc = DateTime.UtcNow;
-        listener = Task.Run(() => ListenAsync(cancellationToken), cancellationToken);
     }
 
     public string GetStatusText()
     {
         ThreadHelper.ThrowIfNotOnUIThread();
-        var task = listener;
-        var state = task == null ? "Not started" : task.IsFaulted ? "Faulted"
-            : task.IsCompleted ? "Stopped" : "Running";
         var solution = SafeRead(() => { ThreadHelper.ThrowIfNotOnUIThread(); return dte.Solution.FullName; }, "Unavailable");
         var mode = SafeRead(() => { ThreadHelper.ThrowIfNotOnUIThread(); return dte.Debugger.CurrentMode.ToString(); }, "Unavailable");
         var pid = DiagnosticsProcess.GetCurrentProcess().Id;
         var text = new StringBuilder()
             .AppendLine("Version: " + AgentDocumentation.Version)
-            .AppendLine("Server: " + state)
-            .AppendLine("Client: " + (Volatile.Read(ref clientConnected) != 0 ? "Connected" : "None connected"))
-            .AppendLine("Pipe: \\\\.\\pipe\\" + pipeName)
+            .AppendLine("Service: registered with the Visual Studio broker")
+            .AppendLine("Pipe: \\\\.\\pipe\\" + Vespertan.VsExtensionsHub.Services.Contracts.HubServices.PipePrefix + pid)
             .AppendLine("Visual Studio PID: " + pid)
-            .AppendLine("Started (UTC): " + (startedUtc?.ToString("yyyy-MM-dd HH:mm:ss") ?? "Not started"))
+            .AppendLine("Started (UTC): " + startedUtc.ToString("yyyy-MM-dd HH:mm:ss"))
             .AppendLine("Session: " + operations.SessionId)
             .AppendLine()
             .AppendLine("Solution: " + (string.IsNullOrEmpty(solution) ? "None open" : solution))
             .AppendLine("Debugger: " + mode);
-        var error = task?.Exception?.GetBaseException().Message ?? Volatile.Read(ref lastConnectionError);
-        if (error != null) text.AppendLine().AppendLine("Last connection error: " + error);
         return text.AppendLine().AppendLine("Check from a terminal:")
             .AppendLine($"vsagent --pid {pid} status")
             .AppendLine().Append("Snapshot at opening. Press Ctrl+C to copy.").ToString();
     }
 
-    private async Task ListenAsync(CancellationToken cancellationToken)
+    // Preserve sequential dispatch across RPC clients, including mutation deduplication.
+    public async Task<string> ExecuteAsync(string requestJson, CancellationToken cancellationToken)
     {
-        while (!cancellationToken.IsCancellationRequested)
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, shutdown.Token);
+        await requestGate.WaitAsync(linked.Token).ConfigureAwait(false);
+        try
         {
-            using var pipe = CreatePipe();
-
-            try
-            {
-                await pipe.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
-                Volatile.Write(ref clientConnected, 1);
-                await ServeClientAsync(pipe, cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                return;
-            }
-            catch (IOException)
-            {
-                // A client may disconnect halfway through a request; accept the next one.
-            }
-            catch (Exception exception)
-            {
-                Volatile.Write(ref lastConnectionError, exception.Message);
-                ActivityLog.TryLogError(nameof(VsAgentProxy), exception.ToString());
-            }
-            finally
-            {
-                Volatile.Write(ref clientConnected, 0);
-            }
+            var request = JObject.Parse(requestJson);
+            var parameters = request["params"] as JObject ?? new JObject();
+            var key = ProtocolSupport.String(parameters, "idempotencyKey");
+            if (key?.Length > 200) throw new ArgumentException("idempotencyKey must be at most 200 characters.");
+            var response = key == null ? await DispatchAsync(request, linked.Token).ConfigureAwait(false)
+                : mutations.Find(key, request) ?? await DispatchAndRememberAsync(key, request, linked.Token).ConfigureAwait(false);
+            return response.ToString(Formatting.None);
         }
-    }
-
-    private NamedPipeServerStream CreatePipe()
-    {
-        return new NamedPipeServerStream(
-            pipeName,
-            PipeDirection.InOut,
-            1,
-            PipeTransmissionMode.Byte,
-            PipeOptions.Asynchronous);
-    }
-
-    private async Task ServeClientAsync(Stream stream, CancellationToken cancellationToken)
-    {
-        using var reader = new StreamReader(stream, new UTF8Encoding(false), false, 4096, true);
-        using var writer = new StreamWriter(stream, new UTF8Encoding(false), 4096, true) { AutoFlush = true };
-
-        while (!cancellationToken.IsCancellationRequested && stream.CanRead)
-        {
-            var line = await reader.ReadLineAsync().ConfigureAwait(false);
-            if (line is null)
-                return;
-
-            JObject response;
-            try
-            {
-                var request = JObject.Parse(line);
-                var parameters = request["params"] as JObject ?? new JObject();
-                var key = ProtocolSupport.String(parameters, "idempotencyKey");
-                if (key?.Length > 200) throw new ArgumentException("idempotencyKey must be at most 200 characters.");
-                response = key == null ? await DispatchAsync(request, cancellationToken).ConfigureAwait(false)
-                    : mutations.Find(key, request) ?? await DispatchAndRememberAsync(key, request, cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception exception)
-            {
-                response = Error(null, exception);
-            }
-
-            await writer.WriteLineAsync(response.ToString(Formatting.None)).ConfigureAwait(false);
-        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception exception) { return Error(null, exception).ToString(Formatting.None); }
+        finally { requestGate.Release(); }
     }
 
     private async Task<JObject> DispatchAndRememberAsync(string key, JObject request, CancellationToken token)
@@ -797,6 +729,7 @@ internal sealed class ProxyServer : IDisposable
     public void Dispose()
     {
         ThreadHelper.ThrowIfNotOnUIThread();
+        shutdown.Cancel();
         ideEvents.Dispose();
         engineEvents.Dispose();
         diagnosticsService.Dispose();

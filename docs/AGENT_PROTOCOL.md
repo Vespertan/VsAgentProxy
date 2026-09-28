@@ -2,23 +2,40 @@
 
 ## 1. Purpose and architecture
 
-VS Agent Proxy is a local bridge between an agent and Visual Studio. The VSIX
-extension runs inside the `devenv.exe` process, uses EnvDTE on the Visual Studio
-main thread, and exposes a closed allow-list of operations through a named pipe.
-It does not expose a TCP server or an arbitrary `ExecuteCommand`.
+VS Agent Proxy 0.8 runs inside `devenv.exe` and registers the brokered service
+`Vespertan.VsAgent/1.0`. It owns debugger operations, not a pipe server.
+Vespertan Extensions Hub 1.5 owns the central endpoint `VsExtensionsHub-{PID}`.
+The client uses HubConnection and the Visual Studio remote service broker over
+StreamJsonRpc and a multiplexed named pipe. Only explicitly published services
+are accessible. The endpoint is restricted to the current Windows user.
 
-Each instance creates a named pipe:
+`instances` enumerates Hub pipes, connects with a timeout, checks Hub status,
+requests the VsAgent service, and calls `ping`. Its Hub/VsAgent fields distinguish
+ready, unavailable and failed services. Without `--pid`, commands select the newest
+Hub process; use an explicit PID when several instances are running. Regular
+commands do not send a preliminary ping. An unavailable VsAgent returns
+`serviceUnavailable`; a connection/activation failure returns CLI exit code 3.
 
-```text
-pipe:       VsAgentProxy-{PID}
+VsAgent command/result JSON envelopes remain compatible with contract version 2,
+but are now arguments/results of `IAgentService.ExecuteAsync`. Do not send raw
+JSON lines to the Hub pipe. Old clients require the old proxy; update Hub, proxy
+and CLI together. Operation IDs, session IDs, mutation idempotency and wait
+semantics are preserved. A timeout does not prove that a VS operation was cancelled;
+inspect operationStatus before retrying a mutation.
+
+Hub commands do not require VsAgentProxy:
+
+```powershell
+vsagent --pid 12345 hubStatus
+vsagent --pid 12345 selection
+vsagent --pid 12345 solutionTree
+vsagent --pid 12345 watchSelection --durationMs 60000
 ```
 
-The client discovers active instances by enumerating `\\.\pipe\` and filtering
-the `VsAgentProxy-{PID}` pattern. The pipe name supplies the Visual Studio PID.
-Use an explicit PID to select an instance unambiguously. The selected pipe is
-connected directly for the requested operation; the client does not send an
-implicit `ping` before every command. Call `ping` explicitly when you need to
-inspect the proxy version or session.
+`watchSelection` keeps the connection open, prints an initial snapshot and then
+one JSON line per refreshed snapshot. Events are coalesced; these are current
+snapshots, not a lossless history. Ctrl+C or the duration ends the watch. Connection
+loss is an error. Selection here means Solution Explorer nodes, not editor text.
 
 ## 2. CLI client
 
@@ -27,7 +44,7 @@ from the repository:
 
 ```powershell
 dotnet pack .\src\VsAgentProxy.Client\VsAgentProxy.Client.csproj -c Release --no-restore
-dotnet tool install --global --configfile .\NuGet.Tool.config VsAgentProxy.Client --version 0.7.1
+dotnet tool install --global --configfile .\NuGet.Tool.config VsAgentProxy.Client --version 0.8.0
 ```
 
 Fallback without a global installation:
@@ -44,7 +61,7 @@ vsagent --version
 vsagent --pid 12345 status
 ```
 
-`instances` lists currently enumerated proxy pipes. Without `--pid`, the client
+`instances` lists Hub instances with separately verified Hub/VsAgent status. Without `--pid`, the client
 selects the candidate with the newest available Visual Studio process start
 time. Do not rely on automatic selection when more than one Visual Studio
 instance is running.
@@ -399,17 +416,20 @@ vsagent --pid 12345 breakpointRemove --index 0
 Prefer `id`. `index` is zero-based and unstable after an item is added or
 removed.
 
-## 7. Raw named-pipe protocol
+## 7. RPC command envelope
 
-The client sends one JSON object as one UTF-8 line:
+The client obtains `IAgentService` using `AgentServices.Agent` through
+`HubConnection.Broker.GetProxyAsync`. It passes a JSON string to `ExecuteAsync`:
 
 ```json
 {"id":"abc","method":"locals","params":{"frameIndex":0,"maxDepth":1}}
 ```
 
-The server responds with one JSON line. Method and parameter names are
-case-sensitive. The server handles one connected client at a time and accepts
-the next client after disconnection.
+The method returns the response envelope as a JSON string. RPC performs framing,
+request correlation, cancellation and error transport; raw JSON lines are not
+accepted on the pipe. Method and parameter names remain case-sensitive.
+Hub accepts multiple connections; VsAgent serializes command execution across
+clients to preserve operation ordering and mutation idempotency.
 
 ## 8. Projects, operations, and inspection since 0.6.0
 
@@ -545,4 +565,4 @@ src\VsAgentProxy\bin\Debug\net472\VsAgentProxy.vsix
 ```
 
 After changing the extension, install the new VSIX and restart Visual Studio.
-Current manifest version: `0.7.1`.
+Current manifest version: `0.8.0`.

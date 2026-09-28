@@ -1,25 +1,27 @@
+using Microsoft.ServiceHub.Framework;
+using Vespertan.VsExtensionsHub.Client;
+using Vespertan.VsExtensionsHub.Services.Contracts;
+using VsAgentProxy.Contracts;
 using System.Diagnostics;
-using System.IO.Pipes;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Reflection;
 
 try { return await RunAsync(args); }
-catch (ArgumentException exception) { Console.Error.WriteLine(exception.Message); return 1; }
-catch (JsonException exception) { Console.Error.WriteLine("Invalid JSON: " + exception.Message); return 1; }
+catch (ArgumentException exception) { await Console.Error.WriteLineAsync(exception.Message); return 1; }
+catch (JsonException exception) { await Console.Error.WriteLineAsync("Invalid JSON: " + exception.Message); return 1; }
 
 static async Task<int> RunAsync(string[] args)
 {
     if (args.Length == 1 && (args[0] is "-v" or "--version" or "version"))
     {
-        Console.WriteLine(ClientVersion());
+        await Console.Out.WriteLineAsync(ClientVersion());
         return 0;
     }
 
     if (args.Length == 0 || args[0] is "-h" or "--help")
     {
-        Console.WriteLine(
+        await Console.Out.WriteLineAsync(
             """
             VS Agent Proxy client
 
@@ -67,6 +69,8 @@ static async Task<int> RunAsync(string[] args)
               vsagent start | startWithoutDebugging | restart
               vsagent stepOver | stepInto | stepOut | continue | break | stop
               vsagent --pid <visual-studio-pid> <command>
+              vsagent hubStatus | selection | solutionTree
+              vsagent watchSelection [--durationMs 60000]
               vsagent instances
               vsagent --version
             """);
@@ -85,7 +89,7 @@ static async Task<int> RunAsync(string[] args)
 
     if (arguments.Count == 0)
     {
-        Console.Error.WriteLine("Command is required.");
+        await Console.Error.WriteLineAsync("Command is required.");
         return 1;
     }
 
@@ -94,7 +98,8 @@ static async Task<int> RunAsync(string[] args)
     var instances = DiscoverInstances().ToArray();
     if (command == "instances")
     {
-        Console.WriteLine(JsonSerializer.Serialize(instances, CreateJsonOptions()));
+        var checkedInstances = await Task.WhenAll(instances.Where(i => !requestedPid.HasValue || i.Pid == requestedPid.Value).Select(ProbeAsync));
+        await Console.Out.WriteLineAsync(JsonSerializer.Serialize(checkedInstances, CreateJsonOptions()));
         return 0;
     }
 
@@ -103,9 +108,9 @@ static async Task<int> RunAsync(string[] args)
         : instances.OrderByDescending(item => item.StartedUtc ?? DateTime.MinValue).FirstOrDefault();
     if (instance is null)
     {
-        Console.Error.WriteLine(requestedPid.HasValue
-            ? $"Visual Studio instance {requestedPid.Value} with VS Agent Proxy was not found."
-            : "No running Visual Studio instance with VS Agent Proxy was found.");
+        await Console.Error.WriteLineAsync(requestedPid.HasValue
+            ? $"Visual Studio instance {requestedPid.Value} with Vespertan Extensions Hub was not found."
+            : "No running Visual Studio instance with Vespertan Extensions Hub was found.");
         return 2;
     }
 
@@ -145,17 +150,19 @@ static async Task<int> RunAsync(string[] args)
 
     try
     {
+        if (command == "watchSelection")
+            return await WatchSelectionAsync(instance, connectTimeout, responseTimeout, TakeInteger(parameters, "durationMs", 60000, 100, 3600000));
         if (command == "waitForState")
             return await WaitAsync(instance, parameters["operationId"]?.GetValue<string>(), parameters["state"]?.GetValue<string>(), connectTimeout, responseTimeout, waitTimeout, pollMs);
         var response = await SendAsync(instance, request, connectTimeout, responseTimeout);
         if (wait && response["ok"]?.GetValue<bool>() == true && response["result"]?["operationId"] is JsonValue operationId)
             return await WaitAsync(instance, operationId.GetValue<string>(), null, connectTimeout, responseTimeout, waitTimeout, pollMs);
-        Console.WriteLine(response.ToJsonString(CreateJsonOptions()));
+        await Console.Out.WriteLineAsync(response.ToJsonString(CreateJsonOptions()));
         return response["ok"]?.GetValue<bool>() == true ? 0 : 1;
     }
     catch (Exception exception)
     {
-        Console.Error.WriteLine(exception.Message);
+        await Console.Error.WriteLineAsync(exception.Message);
         return 3;
     }
 }
@@ -210,15 +217,31 @@ static JsonObject Request(string method, JsonObject parameters) => new() { ["id"
 
 static async Task<JsonObject> SendAsync(PipeInstance instance, JsonObject request, int connectMs, int responseMs, CancellationToken cancellationToken = default)
 {
-    await using var pipe = new NamedPipeClientStream(".", instance.Pipe, PipeDirection.InOut, PipeOptions.Asynchronous);
-    using (var connect = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)) { connect.CancelAfter(connectMs); await pipe.ConnectAsync(connect.Token); }
+    using var connect = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+    connect.CancelAfter(connectMs);
+    await using var connection = await HubConnection.ConnectAsync(instance.Pid, connect.Token);
     using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
     timeout.CancelAfter(responseMs);
-    using var reader = new StreamReader(pipe, new UTF8Encoding(false), false, 4096, true);
-    await using var writer = new StreamWriter(pipe, new UTF8Encoding(false), 4096, true) { AutoFlush = true };
-    await writer.WriteLineAsync(request.ToJsonString().AsMemory(), timeout.Token);
-    var response = await reader.ReadLineAsync(timeout.Token) ?? throw new IOException("Proxy disconnected before sending a response.");
-    return JsonNode.Parse(response) as JsonObject ?? throw new IOException("Invalid proxy response.");
+    var command = request["method"]?.GetValue<string>();
+    if (command == "hubStatus")
+    {
+        using var hub = await connection.Broker.GetProxyAsync<IHubService>(HubServices.Hub, cancellationToken: timeout.Token)
+            ?? throw new InvalidOperationException("Hub status service is unavailable.");
+        return new JsonObject { ["id"] = request["id"]?.DeepClone(), ["ok"] = true,
+            ["result"] = JsonSerializer.SerializeToNode(await hub.GetStatusAsync(timeout.Token).WaitAsync(timeout.Token)) };
+    }
+    if (command is "selection" or "solutionTree")
+    {
+        using var explorer = await connection.Broker.GetProxyAsync<ISolutionExplorerService>(HubServices.SolutionExplorer, cancellationToken: timeout.Token)
+            ?? throw new InvalidOperationException("Hub Solution Explorer service is unavailable.");
+        var items = await (command == "selection" ? explorer.GetSelectedAsync(timeout.Token) : explorer.GetTreeAsync(timeout.Token)).WaitAsync(timeout.Token);
+        return new JsonObject { ["id"] = request["id"]?.DeepClone(), ["ok"] = true, ["result"] = JsonSerializer.SerializeToNode(items) };
+    }
+    using var agent = await connection.Broker.GetProxyAsync<IAgentService>(AgentServices.Agent, cancellationToken: timeout.Token);
+    if (agent == null) return new JsonObject { ["id"] = request["id"]?.DeepClone(), ["ok"] = false,
+        ["errorCode"] = "serviceUnavailable", ["error"] = "VsAgent service 1.0 is unavailable. Install/enable VsAgentProxy 0.8+ with Hub 1.5+." };
+    var response = await agent.ExecuteAsync(request.ToJsonString(), timeout.Token).WaitAsync(timeout.Token);
+    return JsonNode.Parse(response) as JsonObject ?? throw new IOException("Invalid VsAgent response.");
 }
 
 static async Task<int> WaitAsync(PipeInstance instance, string? operationId, string? requestedState, int connectMs, int responseMs, int waitMs, int pollMs)
@@ -233,19 +256,81 @@ static async Task<int> WaitAsync(PipeInstance instance, string? operationId, str
         var remaining = Math.Max(1, waitMs - (int)elapsed.ElapsedMilliseconds);
         try { last = await SendAsync(instance, operationId == null ? Request("status", new()) : Request("operationStatus", new() { ["id"] = operationId }), Math.Min(connectMs, remaining), Math.Min(responseMs, remaining), deadline.Token); }
         catch (OperationCanceledException) when (deadline.IsCancellationRequested || elapsed.ElapsedMilliseconds >= waitMs) { break; }
-        if (last["ok"]?.GetValue<bool>() != true) { Console.WriteLine(last.ToJsonString(CreateJsonOptions())); return 1; }
+        if (last["ok"]?.GetValue<bool>() != true) { await Console.Out.WriteLineAsync(last.ToJsonString(CreateJsonOptions())); return 1; }
         var actual = last["result"]?[operationId == null ? "mode" : "state"]?.GetValue<string>();
         if ((operationId == null && actual == state) || (operationId != null && actual is "succeeded" or "failed" or "cancelled" or "unknown"))
-        { Console.WriteLine(last.ToJsonString(CreateJsonOptions())); return operationId == null || actual == "succeeded" ? 0 : actual == "unknown" ? 4 : 1; }
+        { await Console.Out.WriteLineAsync(last.ToJsonString(CreateJsonOptions())); return operationId == null || actual == "succeeded" ? 0 : actual == "unknown" ? 4 : 1; }
         await Task.Delay(Math.Min(pollMs, Math.Max(1, waitMs - (int)elapsed.ElapsedMilliseconds)));
     }
-    Console.WriteLine(new JsonObject { ["ok"] = false, ["errorCode"] = "waitTimedOut", ["operationCancelled"] = false, ["lastResponse"] = last }.ToJsonString(CreateJsonOptions()));
+    await Console.Out.WriteLineAsync(new JsonObject { ["ok"] = false, ["errorCode"] = "waitTimedOut", ["operationCancelled"] = false, ["lastResponse"] = last }.ToJsonString(CreateJsonOptions()));
     return 4;
+}
+
+static async Task<object> ProbeAsync(PipeInstance instance)
+{
+    var hubState = "notResponding";
+    try
+    {
+        using var timeout = new CancellationTokenSource(3000);
+        await using var connection = await HubConnection.ConnectAsync(instance.Pid, timeout.Token);
+        using var hub = await connection.Broker.GetProxyAsync<IHubService>(HubServices.Hub, cancellationToken: timeout.Token)
+            ?? throw new InvalidOperationException("Hub status service unavailable.");
+        var status = await hub.GetStatusAsync(timeout.Token).WaitAsync(timeout.Token);
+        if (status.ProcessId != instance.Pid) throw new IOException("Hub PID does not match discovery.");
+        hubState = "ready";
+        using var agent = await connection.Broker.GetProxyAsync<IAgentService>(AgentServices.Agent, cancellationToken: timeout.Token);
+        if (agent == null) return new { instance.Pid, instance.Pipe, instance.StartedUtc, Hub = hubState, VsAgent = "unavailable", Error = (string?)null };
+        var response = JsonNode.Parse(await agent.ExecuteAsync(Request("ping", new()).ToJsonString(), timeout.Token).WaitAsync(timeout.Token));
+        return new { instance.Pid, instance.Pipe, instance.StartedUtc, Hub = hubState,
+            VsAgent = response?["ok"]?.GetValue<bool>() == true ? "ready" : "error", Error = (string?)null };
+    }
+    catch (Exception ex)
+    {
+        return new { instance.Pid, instance.Pipe, instance.StartedUtc, Hub = hubState,
+            VsAgent = hubState == "ready" ? "error" : "notChecked", Error = ex.Message };
+    }
+}
+
+static async Task<int> WatchSelectionAsync(PipeInstance instance, int connectMs, int responseMs, int durationMs)
+{
+    using var connect = new CancellationTokenSource(connectMs);
+    await using var connection = await HubConnection.ConnectAsync(instance.Pid, connect.Token);
+    using var duration = new CancellationTokenSource(durationMs);
+    ConsoleCancelEventHandler cancel = (_, e) => { e.Cancel = true; duration.Cancel(); };
+    Console.CancelKeyPress += cancel;
+    try
+    {
+        using var service = await connection.Broker.GetProxyAsync<ISolutionExplorerService>(HubServices.SolutionExplorer, cancellationToken: duration.Token)
+            ?? throw new InvalidOperationException("Hub Solution Explorer service is unavailable.");
+        // Coalesce bursts; all output is written by this one consumer.
+        using var changed = new SemaphoreSlim(0, 1);
+        EventHandler handler = (_, _) => { try { changed.Release(); } catch (SemaphoreFullException) { } catch (ObjectDisposedException) { } };
+        service.SelectionChanged += handler;
+        try
+        {
+            handler(null, EventArgs.Empty);
+            while (!duration.IsCancellationRequested)
+            {
+                var signal = changed.WaitAsync(duration.Token);
+                if (await Task.WhenAny(signal, connection.Completion) == connection.Completion)
+                    throw new IOException("Hub disconnected while watching selection.");
+                await signal;
+                using var response = CancellationTokenSource.CreateLinkedTokenSource(duration.Token);
+                response.CancelAfter(responseMs);
+                var items = await service.GetSelectedAsync(response.Token).WaitAsync(response.Token);
+                await Console.Out.WriteLineAsync(JsonSerializer.Serialize(new { Event = "SelectionChanged", Items = items }));
+            }
+        }
+        finally { service.SelectionChanged -= handler; }
+    }
+    catch (OperationCanceledException) when (duration.IsCancellationRequested) { }
+    finally { Console.CancelKeyPress -= cancel; }
+    return 0;
 }
 
 static IEnumerable<PipeInstance> DiscoverInstances()
 {
-    const string prefix = "VsAgentProxy-";
+    const string prefix = HubServices.PipePrefix;
     IEnumerable<string> pipes;
     try
     {

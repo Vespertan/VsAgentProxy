@@ -13,4 +13,5 @@
   </Project>
   <Project Path="VsAgentProxy.Client/VsAgentProxy.Client.csproj" />
   <Project Path="VsAgentProxy.Tests/VsAgentProxy.Tests.csproj" />
+  <Project Path="VsAgentProxy.Contracts/VsAgentProxy.Contracts.csproj" />
 </Solution>

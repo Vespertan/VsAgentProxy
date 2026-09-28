@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -9,7 +9,7 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <ToolCommandName>vsagent</ToolCommandName>
     <PackageId>VsAgentProxy.Client</PackageId>
-    <Version>0.7.5</Version>
+    <Version>0.8.0</Version>
     <Authors>Vespertan</Authors>
     <Description>Command-line client for the local VS Agent Proxy Visual Studio extension.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -21,6 +21,12 @@
     <PackageOutputPath>..\..\artifacts</PackageOutputPath>
     <CertificateThumbprint>3f7b3157fb143dce9415ff90a8fbf03b6e321f7b</CertificateThumbprint>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../VsAgentProxy.Contracts/VsAgentProxy.Contracts.csproj" />
+    <PackageReference Include="Vespertan.VsExtensionsHub.Services.Contracts" Version="1.1.0" />
+    <PackageReference Include="Vespertan.VsExtensionsHub.Client" Version="1.0.2" />
+  </ItemGroup>
 
   <ItemGroup>
     <None Include="icon.png" Pack="true" PackagePath="" />

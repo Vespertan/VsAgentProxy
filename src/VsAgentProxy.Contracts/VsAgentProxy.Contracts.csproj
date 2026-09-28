@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <Version>1.0.0</Version>
+    <Description>VsAgent brokered service contract, independent of its VS implementation.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MessagePack" Version="2.5.303" />
+    <PackageReference Include="Microsoft.ServiceHub.Framework" Version="4.8.55" />
+  </ItemGroup>
+</Project>
