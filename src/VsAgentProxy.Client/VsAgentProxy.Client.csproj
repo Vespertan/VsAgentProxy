@@ -24,8 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../VsAgentProxy.Contracts/VsAgentProxy.Contracts.csproj" />
-    <PackageReference Include="Vespertan.VsExtensionsHub.Services.Contracts" Version="1.1.0" />
-    <PackageReference Include="Vespertan.VsExtensionsHub.Client" Version="1.0.2" />
+    <PackageReference Include="Vespertan.VisualStudio.Contracts" Version="1.4.0" />
   </ItemGroup>
 
   <ItemGroup>

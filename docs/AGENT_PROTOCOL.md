@@ -4,7 +4,7 @@
 
 VS Agent Proxy 0.8 runs inside `devenv.exe` and registers the brokered service
 `Vespertan.VsAgent/1.0`. It owns debugger operations, not a pipe server.
-Vespertan Extensions Hub 1.5 owns the central endpoint `VsExtensionsHub-{PID}`.
+Vespertan Extensions Hub 1.7 owns the central endpoint `VisualStudio.Hub-{PID}`.
 The client uses HubConnection and the Visual Studio remote service broker over
 StreamJsonRpc and a multiplexed named pipe. Only explicitly published services
 are accessible. The endpoint is restricted to the current Windows user.

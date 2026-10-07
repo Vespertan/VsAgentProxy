@@ -76,7 +76,7 @@ internal static class AgentDocumentation
             ["version"] = Version,
             ["contractVersion"] = 2,
             ["protocol"] = "json-rpc/multiplexed-named-pipe",
-            ["pipePattern"] = "VsExtensionsHub-{visualStudioPid}",
+            ["pipePattern"] = "VisualStudio.Hub-{visualStudioPid}",
             ["methodNamesCaseSensitive"] = true,
             ["recommendedFirstCalls"] = new JArray("status", "capabilities"),
             ["methods"] = methods,

@@ -1,0 +1,5 @@
+<Project>
+  <PropertyGroup>
+    <RestoreAdditionalProjectSources>$(RestoreAdditionalProjectSources);$(MSBuildThisFileDirectory)artifacts/feed</RestoreAdditionalProjectSources>
+  </PropertyGroup>
+</Project>

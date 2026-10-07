@@ -11,7 +11,7 @@ using Microsoft.VisualStudio.ComponentModelHost;
 using Microsoft.VisualStudio.Shell.TableManager;
 using Microsoft.ServiceHub.Framework;
 using Microsoft.VisualStudio.Shell.ServiceBroker;
-using Vespertan.VsExtensionsHub.Services.Contracts;
+using Vespertan.VisualStudio.Contracts;
 using VsAgentProxy.Contracts;
 using Task = System.Threading.Tasks.Task;
 
@@ -80,7 +80,7 @@ public sealed class VsAgentProxyPackage : AsyncPackage
         externalRegistration?.Dispose();
         externalRegistration = await container.GetFullAccessServiceBroker().GetProxyAsync<IExternalServiceRegistration>(
             HubServices.ExternalServiceRegistration, cancellationToken: cancellationToken)
-            ?? throw new InvalidOperationException("Vespertan Extensions Hub 1.5 or newer is required.");
+            ?? throw new InvalidOperationException("Vespertan Extensions Hub 1.7 or newer is required.");
         await externalRegistration.RegisterAsync(AgentServices.Name, AgentServices.Version, cancellationToken);
     }
 

@@ -1,6 +1,5 @@
 using Microsoft.ServiceHub.Framework;
-using Vespertan.VsExtensionsHub.Client;
-using Vespertan.VsExtensionsHub.Services.Contracts;
+using Vespertan.VisualStudio.Contracts;
 using VsAgentProxy.Contracts;
 using System.Diagnostics;
 using System.Text.Json;
@@ -239,7 +238,7 @@ static async Task<JsonObject> SendAsync(PipeInstance instance, JsonObject reques
     }
     using var agent = await connection.Broker.GetProxyAsync<IAgentService>(AgentServices.Agent, cancellationToken: timeout.Token);
     if (agent == null) return new JsonObject { ["id"] = request["id"]?.DeepClone(), ["ok"] = false,
-        ["errorCode"] = "serviceUnavailable", ["error"] = "VsAgent service 1.0 is unavailable. Install/enable VsAgentProxy 0.8+ with Hub 1.5+." };
+        ["errorCode"] = "serviceUnavailable", ["error"] = "VsAgent service 1.0 is unavailable. Install/enable VsAgentProxy 0.8+ with Hub 1.7+." };
     var response = await agent.ExecuteAsync(request.ToJsonString(), timeout.Token).WaitAsync(timeout.Token);
     return JsonNode.Parse(response) as JsonObject ?? throw new IOException("Invalid VsAgent response.");
 }

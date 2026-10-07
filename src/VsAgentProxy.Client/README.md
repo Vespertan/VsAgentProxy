@@ -9,7 +9,7 @@ and launch-profile management, diagnostics, Output access, and execution control
 
 ## Requirements
 
-- Visual Studio with Hub 1.5+ and VsAgentProxy 0.8+ installed and running.
+- Visual Studio with Hub 1.7+ and VsAgentProxy 0.8+ installed and running.
 - .NET 10 SDK or runtime for the global tool.
 
 ## Install

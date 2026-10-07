@@ -92,7 +92,7 @@ Breakpointy: `breakpointAdd`, `breakpointRemove`, `breakpointSetEnabled`,
 ## Budowanie
 
 ```powershell
-dotnet build .\src\VsAgentProxy.slnx
+./build.ps1 -Test
 ```
 
-VSIX: `src\VsAgentProxy\bin\Debug\net472\VsAgentProxy.vsix`.
+VSIX: `src\VsAgentProxy\bin\Release\net472\VsAgentProxy.vsix`.

@@ -15,7 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../VsAgentProxy.Contracts/VsAgentProxy.Contracts.csproj" />
-    <PackageReference Include="Vespertan.VsExtensionsHub.Services.Contracts" Version="1.1.0" />
+    <PackageReference Include="Vespertan.VisualStudio.Contracts" Version="1.4.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -23,7 +23,7 @@
     <PackageReference Include="Microsoft.VisualStudio.ProjectSystem" Version="17.9.380" ExcludeAssets="runtime" />
     <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2120" PrivateAssets="all" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="Vespertan.VsExtensionsHub.Contracts" Version="1.1.0" PrivateAssets="all" />
+    <PackageReference Include="Vespertan.VisualStudio.Vsct" Version="1.1.0" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>

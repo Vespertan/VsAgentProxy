@@ -68,7 +68,7 @@ internal sealed class AgentService : IDisposable
         var text = new StringBuilder()
             .AppendLine("Version: " + AgentDocumentation.Version)
             .AppendLine("Service: registered with the Visual Studio broker")
-            .AppendLine("Pipe: \\\\.\\pipe\\" + Vespertan.VsExtensionsHub.Services.Contracts.HubServices.PipePrefix + pid)
+            .AppendLine("Pipe: \\\\.\\pipe\\" + Vespertan.VisualStudio.Contracts.HubServices.PipePrefix + pid)
             .AppendLine("Visual Studio PID: " + pid)
             .AppendLine("Started (UTC): " + startedUtc.ToString("yyyy-MM-dd HH:mm:ss"))
             .AppendLine("Session: " + operations.SessionId)
