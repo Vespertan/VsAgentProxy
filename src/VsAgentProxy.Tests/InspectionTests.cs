@@ -18,9 +18,9 @@ public sealed class InspectionTests
     [InlineData(int.MaxValue, int.MaxValue - 1, 200000, int.MaxValue - 1, 1)]
     public void OutputRangesHandleEmptyTailAndEndOfBuffer(int length, int? offset, int count, int expectedOffset, int expectedCount)
     {
-        var actual = ProtocolSupport.Range(length, offset, count);
-        Assert.Equal(expectedOffset, actual.Offset);
-        Assert.Equal(expectedCount, actual.Count);
+        var (Offset, Count) = ProtocolSupport.Range(length, offset, count);
+        Assert.Equal(expectedOffset, Offset);
+        Assert.Equal(expectedCount, Count);
     }
 
     [Theory]
@@ -69,10 +69,10 @@ public sealed class InspectionTests
         Assert.Empty(sink.Read());
         var first = new Entry("first");
         var second = new Entry("second");
-        sink.AddEntries(new[] { first });
+        sink.AddEntries([first]);
         sink.IsStable = true;
         Assert.Equal("first", Assert.Single(sink.Read()).Value<string>("message"));
-        sink.ReplaceEntries(new[] { first }, new[] { second });
+        sink.ReplaceEntries([first], [second]);
         Assert.Equal("second", Assert.Single(sink.Read()).Value<string>("message"));
         sink.RemoveAllEntries();
         Assert.Empty(sink.Read());
@@ -149,7 +149,7 @@ public sealed class InspectionTests
         Assert.True(buildResult.Value<bool>("isStable"));
         Assert.Equal(1, source.Subscriptions);
         manager.RemoveSource(source);
-        Assert.Empty((JArray)service.Read(new JObject())["items"]!);
+        Assert.Empty((JArray)service.Read([])["items"]!);
         Assert.True(source.Unsubscribed);
     }
 
@@ -157,7 +157,7 @@ public sealed class InspectionTests
     public void FailedProviderIsReportedAlongsideHealthyResults()
     {
         using var service = new DiagnosticsService(new Manager(new Source(), new Source { Fail = true }));
-        var result = service.Read(new JObject());
+        var result = service.Read([]);
         Assert.Equal(2, result.Value<int>("count"));
         Assert.False(result.Value<bool>("complete"));
         Assert.False(result.Value<bool>("isStable"));
@@ -174,13 +174,13 @@ public sealed class InspectionTests
 
     private sealed class Entry : ITableEntry
     {
-        private readonly string message;
-        public Entry(string message) => this.message = message;
+        private readonly string _message;
+        public Entry(string message) => this._message = message;
         public object Identity => this;
 
         public bool TryGetValue(string keyName, out object content)
         {
-            content = keyName == StandardTableKeyNames.Text ? message : keyName == StandardTableKeyNames.ErrorSource ? (object)ErrorSource.Build : null!;
+            content = keyName == StandardTableKeyNames.Text ? _message : keyName == StandardTableKeyNames.ErrorSource ? (object)ErrorSource.Build : null!;
             return content != null;
         }
 
@@ -205,7 +205,7 @@ public sealed class InspectionTests
             }
 
             Subscriptions++;
-            sink.AddEntries(new[] { new Entry("first"), new Entry("second") });
+            sink.AddEntries([new Entry("first"), new Entry("second")]);
             sink.IsStable = true;
             return this;
         }
@@ -215,26 +215,26 @@ public sealed class InspectionTests
 
     private sealed class Manager : ITableManager
     {
-        private readonly List<ITableDataSource> sources;
-        public Manager(params ITableDataSource[] sources) => this.sources = new List<ITableDataSource>(sources);
+        private readonly List<ITableDataSource> _sources;
+        public Manager(params ITableDataSource[] sources) => this._sources = [.. sources];
         public string Identifier => "test";
-        public IReadOnlyList<ITableDataSource> Sources => sources;
+        public IReadOnlyList<ITableDataSource> Sources => _sources;
         public event EventHandler? SourcesChanged { add { } remove { } }
 
         public bool AddSource(ITableDataSource source, IReadOnlyCollection<string> columns)
         {
-            sources.Add(source);
+            _sources.Add(source);
             return true;
         }
 
         public bool AddSource(ITableDataSource source, params string[] columns)
         {
-            sources.Add(source);
+            _sources.Add(source);
             return true;
         }
 
-        public bool RemoveSource(ITableDataSource source) => sources.Remove(source);
-        public IReadOnlyList<string> GetColumnsForSources(IEnumerable<ITableDataSource> values) => Array.Empty<string>();
+        public bool RemoveSource(ITableDataSource source) => _sources.Remove(source);
+        public IReadOnlyList<string> GetColumnsForSources(IEnumerable<ITableDataSource> values) => [];
     }
 
     private sealed class Factory : ITableEntriesSnapshotFactory

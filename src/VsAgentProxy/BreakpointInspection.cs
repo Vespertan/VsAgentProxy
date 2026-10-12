@@ -9,17 +9,17 @@ namespace VsAgentProxy;
 
 internal sealed class BreakpointInspection
 {
-    private readonly DTE2 dte;
-    private readonly Dictionary<Breakpoint, int> hits = new();
-    private readonly DateTime since = DateTime.UtcNow;
-    public BreakpointInspection(DTE2 dte) => this.dte = dte;
+    private readonly DTE2 _dte;
+    private readonly Dictionary<Breakpoint, int> _hits = [];
+    private readonly DateTime _since = DateTime.UtcNow;
+    public BreakpointInspection(DTE2 dte) => this._dte = dte;
 
     public JArray ObserveHits()
     {
         ThreadHelper.ThrowIfNotOnUIThread();
         var result = new JArray();
         var seen = new HashSet<Breakpoint>();
-        foreach (Breakpoint breakpoint in dte.Debugger.AllBreakpointsLastHit)
+        foreach (Breakpoint breakpoint in _dte.Debugger.AllBreakpointsLastHit)
         {
             var parent = Root(breakpoint);
             if (!seen.Add(parent))
@@ -27,13 +27,13 @@ internal sealed class BreakpointInspection
                 continue;
             }
 
-            if (hits.Count >= 2048 && !hits.ContainsKey(parent))
+            if (_hits.Count >= 2048 && !_hits.ContainsKey(parent))
             {
                 continue;
             }
 
-            hits.TryGetValue(parent, out var count);
-            hits[parent] = count + 1;
+            _hits.TryGetValue(parent, out var count);
+            _hits[parent] = count + 1;
             result.Add(new JObject { ["tag"] = parent.Tag, ["file"] = breakpoint.File, ["line"] = breakpoint.FileLine, ["observedHits"] = count + 1 });
         }
 
@@ -74,15 +74,14 @@ internal sealed class BreakpointInspection
             errors.Add(ProtocolSupport.ReadError("currentHits", exception));
         }
 
-        hits.TryGetValue(Root(breakpoint), out var observed);
+        _hits.TryGetValue(Root(breakpoint), out var observed);
         item["observedHits"] = observed;
-        item["observedSinceUtc"] = since;
+        item["observedSinceUtc"] = _since;
         item["observedHitsSource"] = "DTE.AllBreakpointsLastHit; stops observed since subscription";
         var locations = new JArray();
-        var bound = false;
         try
         {
-            bound = breakpoint.Type == dbgBreakpointType.dbgBreakpointTypeBound;
+            var bound = breakpoint.Type == dbgBreakpointType.dbgBreakpointTypeBound;
             foreach (Breakpoint child in breakpoint.Children)
             {
                 if (child.Type != dbgBreakpointType.dbgBreakpointTypeBound)
@@ -101,7 +100,7 @@ internal sealed class BreakpointInspection
                 });
             }
 
-            item["bindingState"] = bound ? "bound" : dte.Debugger.CurrentMode == dbgDebugMode.dbgDesignMode ? "pending" : "unknown";
+            item["bindingState"] = bound ? "bound" : _dte.Debugger.CurrentMode == dbgDebugMode.dbgDesignMode ? "pending" : "unknown";
         }
         catch (Exception exception)
         {

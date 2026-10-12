@@ -7,7 +7,7 @@ namespace VsAgentProxy;
 
 internal sealed class MutationCache
 {
-    private readonly Dictionary<string, (JObject Request, JObject Response, DateTime Utc)> _entries = new();
+    private readonly Dictionary<string, (JObject Request, JObject Response, DateTime Utc)> _entries = [];
 
     public JObject? Find(string key, JObject request)
     {

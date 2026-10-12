@@ -14,10 +14,10 @@ namespace VsAgentProxy;
 // contracts. Do not load a DLL from the solution, write .suo, or emulate only part of a profile.
 internal sealed class NativeSolutionLaunch
 {
-    private readonly MethodInfo list;
-    private readonly MethodInfo apply;
-    private readonly MethodInfo setSelected;
-    private readonly FieldInfo selected;
+    private readonly MethodInfo _list;
+    private readonly MethodInfo _apply;
+    private readonly MethodInfo _setSelected;
+    private readonly FieldInfo _selected;
     public ISolutionStartupNative Startup { get; }
     public string Version { get; }
 
@@ -36,10 +36,10 @@ internal sealed class NativeSolutionLaunch
         var type = assembly.GetType("Microsoft.VisualStudio.CommonIDE.Solutions.MultiProjectLaunchProfilesPersistence", true)!;
         var profile = assembly.GetType("Microsoft.VisualStudio.CommonIDE.Solutions.LaunchProfile", true)!;
         const BindingFlags flags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
-        list = type.GetMethod("GetLaunchProfilesAsync", flags, null, new[] { typeof(CancellationToken) }, null) ?? throw Missing();
-        apply = type.GetMethod("UpdateProjectStartupSettingsFromProfileAsync", flags, null, new[] { profile, typeof(CancellationToken) }, null) ?? throw Missing();
-        setSelected = type.GetMethod("SetSelectedLaunchProfile", flags, null, new[] { profile }, null) ?? throw Missing();
-        selected = type.GetField("selectedLaunchProfile", flags) ?? throw Missing();
+        _list = type.GetMethod("GetLaunchProfilesAsync", flags, null, [typeof(CancellationToken)], null) ?? throw Missing();
+        _apply = type.GetMethod("UpdateProjectStartupSettingsFromProfileAsync", flags, null, [profile, typeof(CancellationToken)], null) ?? throw Missing();
+        _setSelected = type.GetMethod("SetSelectedLaunchProfile", flags, null, [profile], null) ?? throw Missing();
+        _selected = type.GetField("selectedLaunchProfile", flags) ?? throw Missing();
         foreach (var property in new[] { "Name", "Projects", "IsShared" })
         {
             if (profile.GetProperty(property) == null)
@@ -52,10 +52,10 @@ internal sealed class NativeSolutionLaunch
     }
 
     private static ProxyException Missing() => new("unsupported", "The native solution profile contract does not match this compatibility adapter.");
-    public object? Selected => selected.GetValue(null);
-    public void RestoreSelected(object? value) => Invoke(setSelected, value);
-    public async Task<object[]> ProfilesAsync(CancellationToken token) => ((IEnumerable)(await AwaitAsync(Invoke(list, token)!))!).Cast<object>().ToArray();
-    public async Task ApplyAsync(object profile, CancellationToken token) => await AwaitAsync(Invoke(apply, profile, token)!);
+    public object? Selected => _selected.GetValue(null);
+    public void RestoreSelected(object? value) => Invoke(_setSelected, value);
+    public async Task<object[]> ProfilesAsync(CancellationToken token) => ((IEnumerable)(await AwaitAsync(Invoke(_list, token)!))!).Cast<object>().ToArray();
+    public async Task ApplyAsync(object profile, CancellationToken token) => await AwaitAsync(Invoke(_apply, profile, token)!);
 
     public static object? Property(object? value, string name)
     {
@@ -105,37 +105,4 @@ internal sealed class NativeSolutionLaunch
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
         return task.GetType().GetProperty("Result")?.GetValue(task);
     }
-}
-
-// Exact COM vtables from Microsoft.Internal.VisualStudio.Interop in VS 18.10.
-[ComImport, Guid("552BC6D4-73D2-4A00-84C7-81157143A24B"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-internal interface SolutionStartupServiceNative { }
-
-[ComImport, Guid("9C8369E4-CEFF-44FE-B5E0-93CC111B5712"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-internal interface ISolutionStartupNative
-{
-    IStartupProjectsNative AvailableStartupProjects { [return: MarshalAs(UnmanagedType.Interface)] get; }
-    int StartupMode { get; set; }
-    object DefaultStartupProject { [return: MarshalAs(UnmanagedType.Interface)] get; }
-    void SetDefaultStartupProject(Guid id);
-    void SetProjectStartupSettings(Guid id, int mode, ushort order);
-    void CommitChanges();
-}
-
-[ComImport, Guid("D3409A06-1AB9-4CAB-9028-CE85675C2B44"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-internal interface IStartupProjectsNative
-{
-    void Reset();
-    bool MoveNext();
-    object Current { [return: MarshalAs(UnmanagedType.Interface)] get; }
-    int ItemCount { get; }
-}
-
-[ComImport, Guid("6E71FE11-D672-4A4E-A4A8-94A0388F8574"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-internal interface IStartupProjectNative
-{
-    string ProjectName { [return: MarshalAs(UnmanagedType.BStr)] get; }
-    Guid ProjectGuid { get; }
-    int StartupMode { get; }
-    ushort StartupOrder { get; }
 }

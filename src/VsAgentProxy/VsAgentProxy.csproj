@@ -1,4 +1,4 @@
-<Project>
+﻿<Project>
   <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
@@ -12,9 +12,17 @@
     <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
     <UseCodebase>true</UseCodebase>
   </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="C:\Users\mg\.nuget\packages\vespertan.visualstudio.vsct\1.1.0\Source\VespertanHub.cs" Link="VespertanHub.cs" />
+    <Compile Include="C:\Users\mg\.nuget\packages\vespertan.visualstudio.vsct\1.1.0\Source\VespertanOptions.cs" Link="VespertanOptions.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../VsAgentProxy.Contracts/VsAgentProxy.Contracts.csproj" />
+    <PackageReference Include="Roslynator.Analyzers" Version="5.0.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="Roslynator.Formatting.Analyzers" Version="5.0.1">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

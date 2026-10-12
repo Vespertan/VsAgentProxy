@@ -3,23 +3,6 @@ using Newtonsoft.Json.Linq;
 
 namespace VsAgentProxy;
 
-internal sealed class ProxyException : Exception
-{
-    public string Code { get; }
-    public JObject Details { get; }
-
-    public ProxyException(string code, string message, JObject? details = null, Exception? inner = null)
-        : base(message, inner)
-    {
-        Code = code;
-        Details = details ?? new JObject();
-        if (inner != null)
-        {
-            HResult = inner.HResult;
-        }
-    }
-}
-
 internal static class ProtocolSupport
 {
     public static string AbsolutePath(string path)
@@ -33,7 +16,7 @@ internal static class ProtocolSupport
 
     public static string[] Strings(JObject parameters, string name)
     {
-        return !(parameters[name] is JArray array) || array.Count == 0 || array.Count > 100
+        return parameters[name] is not JArray array || array.Count == 0 || array.Count > 100
             || System.Linq.Enumerable.Any(array, x => x.Type != JTokenType.String || string.IsNullOrWhiteSpace((string?)x))
             ? throw new ArgumentException(name + " must be an array of 1..100 non-empty strings.")
             : System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Select(array, x => (string)x!));

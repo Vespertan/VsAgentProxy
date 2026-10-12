@@ -13,25 +13,25 @@ namespace VsAgentProxy;
 
 internal sealed class ProjectService
 {
-    private readonly DTE2 dte;
-    private readonly IVsSolution? solution;
-    private static readonly Guid SolutionFolderType = new("66A26720-8FB5-11D2-AA7E-00C04F688DDE");
+    private readonly DTE2 _dte;
+    private readonly IVsSolution? _solution;
+    private static readonly Guid _solutionFolderType = new("66A26720-8FB5-11D2-AA7E-00C04F688DDE");
 
     public ProjectService(DTE2 dte, IVsSolution? solution)
     {
-        this.dte = dte;
-        this.solution = solution;
+        this._dte = dte;
+        this._solution = solution;
     }
 
     public void RequireIdle()
     {
         ThreadHelper.ThrowIfNotOnUIThread();
-        if (!dte.Solution.IsOpen)
+        if (!_dte.Solution.IsOpen)
         {
             throw new ProxyException("noSolution", "No solution is open.");
         }
 
-        if (dte.Debugger.CurrentMode != dbgDebugMode.dbgDesignMode || dte.Solution.SolutionBuild.BuildState == vsBuildState.vsBuildStateInProgress)
+        if (_dte.Debugger.CurrentMode != dbgDebugMode.dbgDesignMode || _dte.Solution.SolutionBuild.BuildState == vsBuildState.vsBuildStateInProgress)
         {
             throw new ProxyException("ideBusy", "This operation requires design mode and no build in progress.");
         }
@@ -46,7 +46,7 @@ internal sealed class ProjectService
     {
         ThreadHelper.ThrowIfNotOnUIThread();
         var projects = ((JArray)Read()["projects"]!).OfType<JObject>();
-        var path = ResolvePath(selector, Path.GetDirectoryName(dte.Solution.FullName));
+        var path = ResolvePath(selector, Path.GetDirectoryName(_dte.Solution.FullName));
         var matches = projects.Where(x => (bool?)x["isSolutionFolder"] == false &&
             (string.Equals((string?)x["path"], path, StringComparison.OrdinalIgnoreCase) ||
              string.Equals((string?)x["id"], selector.Trim('{', '}'), StringComparison.OrdinalIgnoreCase) ||
@@ -60,7 +60,7 @@ internal sealed class ProjectService
     {
         ThreadHelper.ThrowIfNotOnUIThread();
         var guid = Guid.Parse((string)project["id"]!);
-        ErrorHandler.ThrowOnFailure(solution!.GetProjectOfGuid(ref guid, out var hierarchy));
+        ErrorHandler.ThrowOnFailure(_solution!.GetProjectOfGuid(ref guid, out var hierarchy));
         return hierarchy;
     }
 
@@ -69,7 +69,7 @@ internal sealed class ProjectService
         ThreadHelper.ThrowIfNotOnUIThread();
         RequireIdle();
         var project = Find(ProtocolSupport.String(parameters, "path") ?? throw new ArgumentException("path is required."));
-        if (!(solution is IVsSolution4 reload))
+        if (_solution is not IVsSolution4 reload)
         {
             throw new ProxyException("unsupported", "IVsSolution4 is unavailable.");
         }
@@ -134,10 +134,10 @@ internal sealed class ProjectService
             throw new ArgumentException("Startup projects must be distinct.");
         }
 
-        var previous = dte.Solution.SolutionBuild.StartupProjects;
+        var previous = _dte.Solution.SolutionBuild.StartupProjects;
         try
         {
-            dte.Solution.SolutionBuild.StartupProjects = uniqueNames;
+            _dte.Solution.SolutionBuild.StartupProjects = uniqueNames;
             var actual = Startup();
             if (!SameSelection((JArray)actual["uniqueNames"]!, uniqueNames))
             {
@@ -152,7 +152,7 @@ internal sealed class ProjectService
             var details = new JObject();
             try
             {
-                dte.Solution.SolutionBuild.StartupProjects = previous;
+                _dte.Solution.SolutionBuild.StartupProjects = previous;
                 details["rollbackDispatched"] = true;
             }
             catch (Exception rollback)
@@ -172,7 +172,7 @@ internal sealed class ProjectService
         ThreadHelper.ThrowIfNotOnUIThread();
         var project = Find(ProtocolSupport.String(parameters, "project") ?? throw new ArgumentException("project is required."));
         var names = ProtocolSupport.Strings(parameters, "names");
-        var configuration = dte.Solution.SolutionBuild.ActiveConfiguration;
+        var configuration = _dte.Solution.SolutionBuild.ActiveConfiguration;
         var configName = configuration.Name;
         if (configuration is SolutionConfiguration2 config2)
         {
@@ -187,11 +187,10 @@ internal sealed class ProjectService
         }
 
         var properties = new JArray();
-        var storage = hierarchy as IVsBuildPropertyStorage;
         foreach (var name in names)
         {
             var item = new JObject { ["name"] = name, ["value"] = null, ["availability"] = "unavailable" };
-            if (storage != null)
+            if (hierarchy is IVsBuildPropertyStorage storage)
             {
                 try
                 {
@@ -215,8 +214,8 @@ internal sealed class ProjectService
     {
         ThreadHelper.ThrowIfNotOnUIThread();
         var configs = new JArray();
-        var active = dte.Solution.SolutionBuild.ActiveConfiguration;
-        foreach (SolutionConfiguration configuration in dte.Solution.SolutionBuild.SolutionConfigurations)
+        var active = _dte.Solution.SolutionBuild.ActiveConfiguration;
+        foreach (SolutionConfiguration configuration in _dte.Solution.SolutionBuild.SolutionConfigurations)
         {
             configs.Add(new JObject
             {
@@ -232,7 +231,7 @@ internal sealed class ProjectService
     public JObject Read()
     {
         ThreadHelper.ThrowIfNotOnUIThread();
-        if (solution == null)
+        if (_solution == null)
         {
             throw new ProxyException("serviceUnavailable", "IVsSolution is unavailable.");
         }
@@ -243,7 +242,7 @@ internal sealed class ProjectService
         var startupAvailable = true;
         try
         {
-            var value = dte.Solution.SolutionBuild.StartupProjects;
+            var value = _dte.Solution.SolutionBuild.StartupProjects;
             if (value is Array array)
             {
                 startup.AddRange(array.Cast<object>().Select(Convert.ToString).Where(s => !string.IsNullOrWhiteSpace(s))!);
@@ -259,12 +258,12 @@ internal sealed class ProjectService
             errors.Add(ProtocolSupport.ReadError("startupProjects", exception));
         }
 
-        var solutionFile = dte.Solution.FullName;
+        var solutionFile = _dte.Solution.FullName;
         var baseDirectory = string.IsNullOrEmpty(solutionFile) ? null : Path.GetDirectoryName(solutionFile);
-        foreach (var group in new[] { (Flags: __VSENUMPROJFLAGS.EPF_LOADEDINSOLUTION, State: "loaded"), (Flags: __VSENUMPROJFLAGS.EPF_UNLOADEDINSOLUTION, State: "unloaded") })
+        foreach (var (Flags, State) in new[] { (Flags: __VSENUMPROJFLAGS.EPF_LOADEDINSOLUTION, State: "loaded"), (Flags: __VSENUMPROJFLAGS.EPF_UNLOADEDINSOLUTION, State: "unloaded") })
         {
             var type = Guid.Empty;
-            ErrorHandler.ThrowOnFailure(solution.GetProjectEnum((uint)group.Flags, ref type, out var enumerator));
+            ErrorHandler.ThrowOnFailure(_solution.GetProjectEnum((uint)Flags, ref type, out var enumerator));
             var hierarchies = new IVsHierarchy[1];
             while (true)
             {
@@ -277,7 +276,7 @@ internal sealed class ProjectService
 
                 var hierarchy = hierarchies[0];
                 var itemErrors = new JArray();
-                var projectId = ReadGuid(() => { ThreadHelper.ThrowIfNotOnUIThread(); ErrorHandler.ThrowOnFailure(solution.GetGuidOfProject(hierarchy, out var guid)); return guid; }, "id", itemErrors);
+                var projectId = ReadGuid(() => { ThreadHelper.ThrowIfNotOnUIThread(); ErrorHandler.ThrowOnFailure(_solution.GetGuidOfProject(hierarchy, out var guid)); return guid; }, "id", itemErrors);
                 var hierarchyType = ReadGuid(() => { ThreadHelper.ThrowIfNotOnUIThread(); ErrorHandler.ThrowOnFailure(hierarchy.GetGuidProperty(VSConstants.VSITEMID_ROOT, (int)__VSHPROPID.VSHPROPID_TypeGuid, out var guid)); return guid; }, "hierarchyTypeGuid", itemErrors);
                 string? kind = null;
                 try
@@ -297,14 +296,14 @@ internal sealed class ProjectService
                 string? uniqueName = null;
                 try
                 {
-                    ErrorHandler.ThrowOnFailure(solution.GetUniqueNameOfProject(hierarchy, out uniqueName));
+                    ErrorHandler.ThrowOnFailure(_solution.GetUniqueNameOfProject(hierarchy, out uniqueName));
                 }
                 catch (Exception exception)
                 {
                     itemErrors.Add(ProtocolSupport.ReadError("uniqueName", exception));
                 }
 
-                var isFolder = string.Equals(kind, SolutionFolderType.ToString("D"), StringComparison.OrdinalIgnoreCase);
+                var isFolder = string.Equals(kind, _solutionFolderType.ToString("D"), StringComparison.OrdinalIgnoreCase);
                 var faultAvailable = false;
                 var faulted = false;
                 try
@@ -364,7 +363,7 @@ internal sealed class ProjectService
                     ["hierarchyTypeGuid"] = hierarchyType,
                     ["type"] = isFolder ? "solutionFolder" : path == null ? "unknown" : Path.GetExtension(path),
                     ["isSolutionFolder"] = isFolder,
-                    ["loadState"] = faulted ? "failed" : group.State,
+                    ["loadState"] = faulted ? "failed" : State,
                     ["isStartup"] = startupAvailable ? new JValue(startup.Any(s => MatchesStartup(s, uniqueName, path, baseDirectory))) : JValue.CreateNull(),
                     ["loadError"] = faultMessage,
                     ["loadErrorAvailability"] = faultAvailable && (!faulted || faultMessage != null) ? "available" : "unavailable",
@@ -378,7 +377,7 @@ internal sealed class ProjectService
         bool? fullyLoaded = null;
         try
         {
-            ErrorHandler.ThrowOnFailure(solution.GetProperty((int)__VSPROPID4.VSPROPID_IsSolutionFullyLoaded, out var value));
+            ErrorHandler.ThrowOnFailure(_solution.GetProperty((int)__VSPROPID4.VSPROPID_IsSolutionFullyLoaded, out var value));
             if (value is bool boolean)
             {
                 fullyLoaded = boolean;
@@ -392,7 +391,7 @@ internal sealed class ProjectService
         return new JObject
         {
             ["solution"] = solutionFile,
-            ["isOpen"] = dte.Solution.IsOpen,
+            ["isOpen"] = _dte.Solution.IsOpen,
             ["isFullyLoaded"] = fullyLoaded.HasValue ? new JValue(fullyLoaded.Value) : JValue.CreateNull(),
             ["projects"] = items,
             ["startupProjects"] = new JArray(startup),
@@ -413,8 +412,8 @@ internal sealed class ProjectService
             : baseDirectory == null ? null : Path.GetFullPath(Path.Combine(baseDirectory, path));
     }
 
-    internal static JArray FaultDiagnostics(JObject state) => new JArray(
-        (state["projects"] as JArray ?? new JArray()).OfType<JObject>()
+    internal static JArray FaultDiagnostics(JObject state) => new (
+        (state["projects"] as JArray ?? []).OfType<JObject>()
         .Where(project => (string?)project["loadState"] == "failed")
         .Select(project => new JObject
         {

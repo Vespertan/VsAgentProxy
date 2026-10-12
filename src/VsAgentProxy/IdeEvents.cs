@@ -10,80 +10,80 @@ namespace VsAgentProxy;
 
 internal sealed class IdeEvents : IVsUpdateSolutionEvents, IDisposable
 {
-    private readonly DTE2 dte;
-    private readonly IVsSolutionBuildManager2? build;
-    private readonly OperationRegistry operations;
-    private readonly DebuggerEvents debuggerEvents;
-    private readonly SolutionEvents solutionEvents;
-    private uint cookie;
+    private readonly DTE2 _dte;
+    private readonly IVsSolutionBuildManager2? _build;
+    private readonly OperationRegistry _operations;
+    private readonly DebuggerEvents _debuggerEvents;
+    private readonly SolutionEvents _solutionEvents;
+    private readonly uint _cookie;
     public long StopGeneration { get; private set; }
     public JObject StopReason { get; private set; } = new() { ["availability"] = "unavailable", ["reason"] = "Subscription started after the last stop, or no stop observed." };
     public event Action? ContextInvalidated;
     public event Action? SolutionChanged;
     public BreakpointInspection Breakpoints { get; }
-    private JObject? lastException;
+    private JObject? _lastException;
 
     public IdeEvents(DTE2 dte, IVsSolutionBuildManager2? build, OperationRegistry operations)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
-        this.dte = dte;
-        this.build = build;
-        this.operations = operations;
+        this._dte = dte;
+        this._build = build;
+        this._operations = operations;
         Breakpoints = new BreakpointInspection(dte);
-        debuggerEvents = dte.Events.DebuggerEvents;
-        solutionEvents = dte.Events.SolutionEvents;
-        debuggerEvents.OnEnterRunMode += OnRun;
-        debuggerEvents.OnEnterBreakMode += OnBreak;
-        debuggerEvents.OnEnterDesignMode += OnDesign;
-        debuggerEvents.OnContextChanged += OnContext;
-        debuggerEvents.OnExceptionThrown += OnException;
-        debuggerEvents.OnExceptionNotHandled += OnException;
-        solutionEvents.Opened += OnSolutionChanged;
-        solutionEvents.AfterClosing += OnSolutionChanged;
+        _debuggerEvents = dte.Events.DebuggerEvents;
+        _solutionEvents = dte.Events.SolutionEvents;
+        _debuggerEvents.OnEnterRunMode += OnRun;
+        _debuggerEvents.OnEnterBreakMode += OnBreak;
+        _debuggerEvents.OnEnterDesignMode += OnDesign;
+        _debuggerEvents.OnContextChanged += OnContext;
+        _debuggerEvents.OnExceptionThrown += OnException;
+        _debuggerEvents.OnExceptionNotHandled += OnException;
+        _solutionEvents.Opened += OnSolutionChanged;
+        _solutionEvents.AfterClosing += OnSolutionChanged;
         if (build != null)
         {
-            ErrorHandler.ThrowOnFailure(build.AdviseUpdateSolutionEvents(this, out cookie));
+            ErrorHandler.ThrowOnFailure(build.AdviseUpdateSolutionEvents(this, out _cookie));
         }
     }
 
     public JObject Execute(string method, string command)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
-        if (dte.Solution.SolutionBuild.BuildState == vsBuildState.vsBuildStateInProgress)
+        if (_dte.Solution.SolutionBuild.BuildState == vsBuildState.vsBuildStateInProgress)
         {
             throw new ProxyException("ideBusy", "A build is already in progress.");
         }
 
-        if (!dte.Commands.Item(command).IsAvailable)
+        if (!_dte.Commands.Item(command).IsAvailable)
         {
             throw new ProxyException("commandUnavailable", "Visual Studio command is unavailable: " + command);
         }
 
-        if ((method == "build" || method == "rebuild" || method == "clean") && build == null)
+        if ((method == "build" || method == "rebuild" || method == "clean") && _build == null)
         {
             throw new ProxyException("serviceUnavailable", "Build event tracking is unavailable.");
         }
 
-        var operation = operations.Begin(method);
+        var operation = _operations.Begin(method);
         try
         {
             Invalidate();
-            dte.ExecuteCommand(command);
-            if (operations.Active == operation)
+            _dte.ExecuteCommand(command);
+            if (_operations.Active == operation)
             {
                 if (method == "startWithoutDebugging")
                 {
-                    operations.Change("unknown", "dispatched", "The provider does not expose process-start confirmation for Ctrl+F5.");
+                    _operations.Change("unknown", "dispatched", "The provider does not expose process-start confirmation for Ctrl+F5.");
                 }
                 else if ((string?)operation["state"] == "queued")
                 {
-                    operations.Change("running", "awaitingEvent");
+                    _operations.Change("running", "awaitingEvent");
                 }
             }
         }
         catch (Exception exception)
         {
-            operations.Change("failed", "dispatchFailed", exception.Message);
+            _operations.Change("failed", "dispatchFailed", exception.Message);
             throw new ProxyException("commandFailed", "Visual Studio rejected the command.", new JObject { ["operationId"] = operation["id"] }, exception);
         }
 
@@ -93,19 +93,19 @@ internal sealed class IdeEvents : IVsUpdateSolutionEvents, IDisposable
     public JObject CancelBuild()
     {
         ThreadHelper.ThrowIfNotOnUIThread();
-        if (build == null)
+        if (_build == null)
         {
             throw new ProxyException("serviceUnavailable", "Build manager unavailable.");
         }
 
-        ErrorHandler.ThrowOnFailure(build.CanCancelUpdateSolutionConfiguration(out var canCancel));
+        ErrorHandler.ThrowOnFailure(_build.CanCancelUpdateSolutionConfiguration(out var canCancel));
         if (canCancel == 0)
         {
             throw new ProxyException("commandUnavailable", "There is no cancellable build.");
         }
 
-        ErrorHandler.ThrowOnFailure(build.CancelUpdateSolutionConfiguration());
-        operations.Emit("buildCancellationRequested");
+        ErrorHandler.ThrowOnFailure(_build.CancelUpdateSolutionConfiguration());
+        _operations.Emit("buildCancellationRequested");
         return new JObject { ["accepted"] = true };
     }
 
@@ -118,12 +118,12 @@ internal sealed class IdeEvents : IVsUpdateSolutionEvents, IDisposable
     private void OnRun(dbgEventReason reason)
     {
         Invalidate();
-        lastException = null;
+        _lastException = null;
         StopReason = new JObject { ["availability"] = "unavailable", ["reason"] = "Debugger is running." };
-        operations.Emit("debuggerRunning", new JObject { ["reason"] = reason.ToString() });
+        _operations.Emit("debuggerRunning", new JObject { ["reason"] = reason.ToString() });
         if (IsStart())
         {
-            operations.Change("succeeded", "debuggerAttached", "DTE.OnEnterRunMode");
+            _operations.Change("succeeded", "debuggerAttached", "DTE.OnEnterRunMode");
         }
     }
 
@@ -140,28 +140,28 @@ internal sealed class IdeEvents : IVsUpdateSolutionEvents, IDisposable
             ["exceptionDetailsAvailability"] = "unavailable",
             ["capturedUtc"] = DateTime.UtcNow
         };
-        if (lastException != null)
+        if (_lastException != null)
         {
-            StopReason["exception"] = lastException.DeepClone();
+            StopReason["exception"] = _lastException.DeepClone();
             StopReason["exceptionDetailsAvailability"] = "available";
         }
 
-        operations.Emit("debuggerStopped", (JObject)StopReason.DeepClone());
+        _operations.Emit("debuggerStopped", (JObject)StopReason.DeepClone());
         if (reason == dbgEventReason.dbgEventReasonBreakpoint)
         {
             try
             {
-                operations.Emit("breakpointHit", new JObject { ["breakpoints"] = Breakpoints.ObserveHits() });
+                _operations.Emit("breakpointHit", new JObject { ["breakpoints"] = Breakpoints.ObserveHits() });
             }
             catch (Exception exception)
             {
-                operations.Emit("breakpointObservationError", ProtocolSupport.ReadError("hits", exception));
+                _operations.Emit("breakpointObservationError", ProtocolSupport.ReadError("hits", exception));
             }
         }
 
         if (IsStart())
         {
-            operations.Change("succeeded", "debuggerAttached", "DTE.OnEnterBreakMode");
+            _operations.Change("succeeded", "debuggerAttached", "DTE.OnEnterBreakMode");
         }
     }
 
@@ -169,60 +169,60 @@ internal sealed class IdeEvents : IVsUpdateSolutionEvents, IDisposable
     {
         Invalidate();
         StopReason = new JObject { ["availability"] = "unavailable", ["reason"] = "Debugger session ended." };
-        operations.Emit("debuggerEnded", new JObject { ["reason"] = reason.ToString() });
-        if ((string?)operations.Active?["method"] == "restart")
+        _operations.Emit("debuggerEnded", new JObject { ["reason"] = reason.ToString() });
+        if ((string?)_operations.Active?["method"] == "restart")
         {
-            operations.Change("running", "restarting", "Old debugger session ended; awaiting the new session.");
+            _operations.Change("running", "restarting", "Old debugger session ended; awaiting the new session.");
         }
         else if (IsStart())
         {
-            operations.Change("unknown", "endedBeforeConfirmation", "DTE entered design mode before a run/break event confirmed launch.");
+            _operations.Change("unknown", "endedBeforeConfirmation", "DTE entered design mode before a run/break event confirmed launch.");
         }
     }
 
-    private bool IsStart() => (string?)operations.Active?["method"] is "start" or "restart";
+    private bool IsStart() => (string?)_operations.Active?["method"] is "start" or "restart";
     private void OnContext(Process process, Program program, EnvDTE.Thread thread, StackFrame frame) => Invalidate();
 
     private void OnException(string type, string name, int code, string description, ref dbgExceptionAction action)
     {
-        lastException = new JObject { ["type"] = type, ["name"] = name, ["code"] = code, ["description"] = description, ["utc"] = DateTime.UtcNow };
-        operations.Emit("exception", (JObject)lastException.DeepClone());
+        _lastException = new JObject { ["type"] = type, ["name"] = name, ["code"] = code, ["description"] = description, ["utc"] = DateTime.UtcNow };
+        _operations.Emit("exception", (JObject)_lastException.DeepClone());
     }
 
     private void OnSolutionChanged()
     {
         Invalidate();
-        operations.Emit("solutionChanged");
+        _operations.Emit("solutionChanged");
         SolutionChanged?.Invoke();
     }
 
     public int UpdateSolution_Begin(ref int pfCancelUpdate)
     {
-        operations.Emit("buildBegin", new JObject { ["operationId"] = operations.Active?["id"], ["source"] = operations.Active == null ? "external" : "commandWindow" });
-        operations.Change("running", "building");
+        _operations.Emit("buildBegin", new JObject { ["operationId"] = _operations.Active?["id"], ["source"] = _operations.Active == null ? "external" : "commandWindow" });
+        _operations.Change("running", "building");
         return VSConstants.S_OK;
     }
 
     public int UpdateSolution_Done(int fSucceeded, int fModified, int fCancelCommand)
     {
-        operations.Emit("buildDone", new JObject { ["succeeded"] = fSucceeded != 0, ["cancelled"] = fCancelCommand != 0, ["operationId"] = operations.Active?["id"] });
-        if (operations.Active != null)
+        _operations.Emit("buildDone", new JObject { ["succeeded"] = fSucceeded != 0, ["cancelled"] = fCancelCommand != 0, ["operationId"] = _operations.Active?["id"] });
+        if (_operations.Active != null)
         {
             if (fCancelCommand != 0)
             {
-                operations.Change("cancelled", "buildCancelled", "IVsUpdateSolutionEvents.UpdateSolution_Done");
+                _operations.Change("cancelled", "buildCancelled", "IVsUpdateSolutionEvents.UpdateSolution_Done");
             }
             else if (fSucceeded == 0)
             {
-                operations.Change("failed", "buildFailed", "IVsUpdateSolutionEvents.UpdateSolution_Done");
+                _operations.Change("failed", "buildFailed", "IVsUpdateSolutionEvents.UpdateSolution_Done");
             }
             else if (IsStart())
             {
-                operations.Change("running", "launching", "Build succeeded; awaiting debugger event.");
+                _operations.Change("running", "launching", "Build succeeded; awaiting debugger event.");
             }
             else
             {
-                operations.Change("succeeded", "completed", "IVsUpdateSolutionEvents.UpdateSolution_Done");
+                _operations.Change("succeeded", "completed", "IVsUpdateSolutionEvents.UpdateSolution_Done");
             }
         }
 
@@ -233,32 +233,32 @@ internal sealed class IdeEvents : IVsUpdateSolutionEvents, IDisposable
 
     public int UpdateSolution_Cancel()
     {
-        operations.Emit("buildCancel");
-        operations.Change("cancelled", "buildCancelled", "IVsUpdateSolutionEvents.UpdateSolution_Cancel");
+        _operations.Emit("buildCancel");
+        _operations.Change("cancelled", "buildCancelled", "IVsUpdateSolutionEvents.UpdateSolution_Cancel");
         return VSConstants.S_OK;
     }
 
     public int OnActiveProjectCfgChange(IVsHierarchy hierarchy)
     {
-        operations.Emit("configurationChanged");
+        _operations.Emit("configurationChanged");
         return VSConstants.S_OK;
     }
 
     public void Dispose()
     {
         ThreadHelper.ThrowIfNotOnUIThread();
-        if (cookie != 0)
+        if (_cookie != 0)
         {
-            build?.UnadviseUpdateSolutionEvents(cookie);
+            _build?.UnadviseUpdateSolutionEvents(_cookie);
         }
 
-        debuggerEvents.OnEnterRunMode -= OnRun;
-        debuggerEvents.OnEnterBreakMode -= OnBreak;
-        debuggerEvents.OnEnterDesignMode -= OnDesign;
-        debuggerEvents.OnContextChanged -= OnContext;
-        debuggerEvents.OnExceptionThrown -= OnException;
-        debuggerEvents.OnExceptionNotHandled -= OnException;
-        solutionEvents.Opened -= OnSolutionChanged;
-        solutionEvents.AfterClosing -= OnSolutionChanged;
+        _debuggerEvents.OnEnterRunMode -= OnRun;
+        _debuggerEvents.OnEnterBreakMode -= OnBreak;
+        _debuggerEvents.OnEnterDesignMode -= OnDesign;
+        _debuggerEvents.OnContextChanged -= OnContext;
+        _debuggerEvents.OnExceptionThrown -= OnException;
+        _debuggerEvents.OnExceptionNotHandled -= OnException;
+        _solutionEvents.Opened -= OnSolutionChanged;
+        _solutionEvents.AfterClosing -= OnSolutionChanged;
     }
 }

@@ -9,19 +9,19 @@ namespace VsAgentProxy;
 
 internal sealed class LaunchCheckService
 {
-    private readonly DTE2 dte;
-    private readonly ProjectService projects;
+    private readonly DTE2 _dte;
+    private readonly ProjectService _projects;
 
     public LaunchCheckService(DTE2 dte, ProjectService projects)
     {
-        this.dte = dte;
-        this.projects = projects;
+        this._dte = dte;
+        this._projects = projects;
     }
 
     public JObject Read()
     {
         ThreadHelper.ThrowIfNotOnUIThread();
-        var state = projects.Read();
+        var state = _projects.Read();
         var errors = new JArray();
         string? mode = null;
         string? buildState = null;
@@ -29,7 +29,7 @@ internal sealed class LaunchCheckService
         int? lastBuildFailedProjects = null;
         try
         {
-            mode = dte.Debugger.CurrentMode.ToString();
+            mode = _dte.Debugger.CurrentMode.ToString();
         }
         catch (Exception exception)
         {
@@ -38,11 +38,11 @@ internal sealed class LaunchCheckService
 
         try
         {
-            buildState = dte.Solution.SolutionBuild.BuildState.ToString();
-            configuration = dte.Solution.SolutionBuild.ActiveConfiguration?.Name;
-            if (buildState == vsBuildState.vsBuildStateDone.ToString())
+            buildState = _dte.Solution.SolutionBuild.BuildState.ToString();
+            configuration = _dte.Solution.SolutionBuild.ActiveConfiguration?.Name;
+            if (buildState == nameof(vsBuildState.vsBuildStateDone))
             {
-                lastBuildFailedProjects = dte.Solution.SolutionBuild.LastBuildInfo;
+                lastBuildFailedProjects = _dte.Solution.SolutionBuild.LastBuildInfo;
             }
         }
         catch (Exception exception)
@@ -55,7 +55,7 @@ internal sealed class LaunchCheckService
         {
             try
             {
-                commands[command] = dte.Commands.Item(command).IsAvailable;
+                commands[command] = _dte.Commands.Item(command).IsAvailable;
             }
             catch (Exception exception)
             {
@@ -108,7 +108,7 @@ internal sealed class LaunchCheckService
             result.Add(Reason("solutionLoading", "confirmed", "The solution is not fully loaded."));
         }
 
-        if (buildState == vsBuildState.vsBuildStateInProgress.ToString())
+        if (buildState == nameof(vsBuildState.vsBuildStateInProgress))
         {
             result.Add(Reason("buildInProgress", "confirmed", "A solution build is in progress."));
         }
@@ -123,13 +123,13 @@ internal sealed class LaunchCheckService
             result.Add(Reason("debuggerPaused", "confirmed", "Debug.Start would continue the current session."));
         }
 
-        var startup = state["startupProjects"] as JArray ?? new JArray();
+        var startup = state["startupProjects"] as JArray ?? [];
         if ((bool?)state["isOpen"] == true && (bool?)state["startupProjectsAvailable"] == true && startup.Count == 0)
         {
             result.Add(Reason("noStartupProjects", "suspected", "DTE reports no startup projects; alternative launch providers may use a different selection."));
         }
 
-        foreach (var project in (state["projects"] as JArray ?? new JArray()).OfType<JObject>().Where(p => (bool?)p["isStartup"] == true))
+        foreach (var project in (state["projects"] as JArray ?? []).OfType<JObject>().Where(p => (bool?)p["isStartup"] == true))
         {
             var loadState = (string?)project["loadState"];
             if (loadState == "failed" || loadState == "unloaded")

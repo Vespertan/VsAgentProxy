@@ -124,7 +124,8 @@ internal static class AgentDocumentation
         return reader.ReadToEnd();
     }
 
-    private const string _shortDocumentation = @"# VS Agent Proxy quick help
+    private const string _shortDocumentation = """
+# VS Agent Proxy quick help
 
 1. Discover instances with the CLI `instances` command and select one with `--pid`.
 2. Call `status`, then `capabilities` when operation metadata is needed.
@@ -133,5 +134,6 @@ internal static class AgentDocumentation
 5. Use step/continue operations and poll `status` again after each state change.
 
 Prefer `locals`/`arguments` over `evaluate`; evaluation may execute debuggee code.
-Call `documentation` with `{ ""level"": ""full"" }` for the complete embedded guide.";
+Call `documentation` with `{ "level": "full" }` for the complete embedded guide.
+""";
 }

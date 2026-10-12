@@ -26,13 +26,13 @@ namespace VsAgentProxy;
 public sealed class VsAgentProxyPackage : AsyncPackage
 {
     public const string PackageGuidString = "7b8f6fcc-9bc7-472e-8dbe-75f32de824ec";
-    private static readonly Guid CommandSet = new("f087fb30-94d9-476f-a1c0-b0198c674f2f");
-    private const int StatusCommandId = 0x0100;
+    private static readonly Guid _commandSet = new("f087fb30-94d9-476f-a1c0-b0198c674f2f");
+    private const int _statusCommandId = 0x0100;
 
-    private AgentService? server;
-    private IDisposable? serviceRegistration;
+    private AgentService? _server;
+    private IDisposable? _serviceRegistration;
 #pragma warning disable ISB001 // AsyncPackage.Dispose(bool) below releases this proxy before the shared service.
-    private IExternalServiceRegistration? externalRegistration;
+    private IExternalServiceRegistration? _externalRegistration;
 #pragma warning restore ISB001
 
     protected override async Task InitializeAsync(CancellationToken cancellationToken, IProgress<ServiceProgressData> progress)
@@ -40,7 +40,7 @@ public sealed class VsAgentProxyPackage : AsyncPackage
         var commands = await GetServiceAsync(typeof(IMenuCommandService)) as OleMenuCommandService
             ?? throw new InvalidOperationException("Visual Studio menu command service is unavailable.");
         await JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
-        commands.AddCommand(new MenuCommand(ShowStatus, new CommandID(CommandSet, StatusCommandId)));
+        commands.AddCommand(new MenuCommand(ShowStatus, new CommandID(_commandSet, _statusCommandId)));
 
         var service = await GetServiceAsync(typeof(EnvDTE.DTE));
         if (service is null)
@@ -73,24 +73,24 @@ public sealed class VsAgentProxyPackage : AsyncPackage
         var targetSelection = targetService as IVsDebugTargetSelectionService;
         var output = outputService as IVsOutputWindow;
         var dte = (DTE2)service;
-        server = new AgentService(dte, JoinableTaskFactory,
+        _server = new AgentService(dte, JoinableTaskFactory,
             new OutputService(dte, output), new ProjectService(dte, solution), new DiagnosticsService(errorTable), new DocumentService(documentTable, editorAdapters), buildManager, targetSelection, debuggerService as IVsDebugger);
         var container = await GetServiceAsync(typeof(SVsBrokeredServiceContainer)) as IBrokeredServiceContainer
             ?? throw new InvalidOperationException("Visual Studio service broker is unavailable.");
-        serviceRegistration = container.Proffer(AgentServices.Agent,
-            (_, _, _, _) => new ValueTask<object?>(new AgentServiceSession(server)));
-        externalRegistration?.Dispose();
-        externalRegistration = await container.GetFullAccessServiceBroker().GetProxyAsync<IExternalServiceRegistration>(
+        _serviceRegistration = container.Proffer(AgentServices.Agent,
+            (_, _, _, _) => new ValueTask<object?>(new AgentServiceSession(_server)));
+        _externalRegistration?.Dispose();
+        _externalRegistration = await container.GetFullAccessServiceBroker().GetProxyAsync<IExternalServiceRegistration>(
             HubServices.ExternalServiceRegistration, cancellationToken: cancellationToken)
             ?? throw new InvalidOperationException("Vespertan Extensions Hub 1.7 or newer is required.");
-        await externalRegistration.RegisterAsync(AgentServices.Name, AgentServices.Version, cancellationToken);
+        await _externalRegistration.RegisterAsync(AgentServices.Name, AgentServices.Version, cancellationToken);
     }
 
     private void ShowStatus(object sender, EventArgs args)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
         VsShellUtilities.ShowMessageBox(this,
-            server?.GetStatusText() ?? "The proxy server is not available. Check the Visual Studio Activity Log for package initialization errors.",
+            _server?.GetStatusText() ?? "The proxy server is not available. Check the Visual Studio Activity Log for package initialization errors.",
             "Agent Proxy status", OLEMSGICON.OLEMSGICON_INFO,
             OLEMSGBUTTON.OLEMSGBUTTON_OK, OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
     }
@@ -100,14 +100,11 @@ public sealed class VsAgentProxyPackage : AsyncPackage
         ThreadHelper.ThrowIfNotOnUIThread();
         if (disposing)
         {
-            if (externalRegistration != null)
-            {
-                externalRegistration.Dispose();
-                externalRegistration = null;
-            }
+            _externalRegistration?.Dispose();
+            _externalRegistration = null;
 
-            serviceRegistration?.Dispose();
-            server?.Dispose();
+            _serviceRegistration?.Dispose();
+            _server?.Dispose();
         }
 
         base.Dispose(disposing);

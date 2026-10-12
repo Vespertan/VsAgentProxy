@@ -221,7 +221,7 @@ static void AddNamedOptions(JsonObject parameters, IReadOnlyList<string> argumen
             throw new ArgumentException("Missing value for " + option);
         }
 
-        var name = option.Substring(2);
+        var name = option[2..];
         var text = arguments[index + 1];
         if (name == "paramsJson")
         {
@@ -348,7 +348,7 @@ static async Task<int> WaitAsync(PipeInstance instance, string? operationId, str
         var remaining = Math.Max(1, waitMs - (int)elapsed.ElapsedMilliseconds);
         try
         {
-            last = await SendAsync(instance, operationId == null ? Request("status", new()) : Request("operationStatus", new() { ["id"] = operationId }), Math.Min(connectMs, remaining), Math.Min(responseMs, remaining), deadline.Token);
+            last = await SendAsync(instance, operationId == null ? Request("status", []) : Request("operationStatus", new() { ["id"] = operationId }), Math.Min(connectMs, remaining), Math.Min(responseMs, remaining), deadline.Token);
         }
         catch (OperationCanceledException) when (deadline.IsCancellationRequested || elapsed.ElapsedMilliseconds >= waitMs)
         {
@@ -397,7 +397,7 @@ static async Task<object> ProbeAsync(PipeInstance instance)
             return new { instance.Pid, instance.Pipe, instance.StartedUtc, Hub = hubState, VsAgent = "unavailable", Error = (string?)null };
         }
 
-        var response = JsonNode.Parse(await agent.ExecuteAsync(Request("ping", new()).ToJsonString(), timeout.Token).WaitAsync(timeout.Token));
+        var response = JsonNode.Parse(await agent.ExecuteAsync(Request("ping", []).ToJsonString(), timeout.Token).WaitAsync(timeout.Token));
         return new
         {
             instance.Pid,
@@ -427,7 +427,11 @@ static async Task<int> WatchSelectionAsync(PipeInstance instance, int connectMs,
     using var connect = new CancellationTokenSource(connectMs);
     await using var connection = await HubConnection.ConnectAsync(instance.Pid, connect.Token);
     using var duration = new CancellationTokenSource(durationMs);
-    ConsoleCancelEventHandler cancel = (_, e) => { e.Cancel = true; duration.Cancel(); };
+    void cancel(object? _, ConsoleCancelEventArgs e)
+    {
+        e.Cancel = true;
+        duration.Cancel();
+    }
     Console.CancelKeyPress += cancel;
     try
     {
@@ -435,7 +439,7 @@ static async Task<int> WatchSelectionAsync(PipeInstance instance, int connectMs,
             ?? throw new InvalidOperationException("Hub Solution Explorer service is unavailable.");
         // Coalesce bursts; all output is written by this one consumer.
         using var changed = new SemaphoreSlim(0, 1);
-        EventHandler handler = (_, _) =>
+        void handler(object? _1, EventArgs _2)
         {
             try
             {
@@ -443,7 +447,7 @@ static async Task<int> WatchSelectionAsync(PipeInstance instance, int connectMs,
             }
             catch (SemaphoreFullException) { }
             catch (ObjectDisposedException) { }
-        };
+        }
         service.SelectionChanged += handler;
         try
         {
@@ -518,5 +522,3 @@ static IEnumerable<PipeInstance> DiscoverInstances()
 static JsonSerializerOptions CreateJsonOptions() => new() { WriteIndented = true };
 
 static string ClientVersion() => Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "unknown";
-
-internal sealed record PipeInstance(int Pid, string Pipe, DateTime? StartedUtc);

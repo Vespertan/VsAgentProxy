@@ -8,7 +8,7 @@ public sealed class OperationTests
 {
     [Theory]
     [InlineData("document.cs")]
-    [InlineData(@"C:document.cs")]
+    [InlineData("C:document.cs")]
     [InlineData(@"\document.cs")]
     [InlineData("/document.cs")]
     public void DocumentPathsCannotDependOnProcessWorkingDirectory(string path)

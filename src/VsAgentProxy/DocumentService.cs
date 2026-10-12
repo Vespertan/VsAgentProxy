@@ -14,13 +14,13 @@ namespace VsAgentProxy;
 
 internal sealed class DocumentService
 {
-    private readonly IVsRunningDocumentTable? table;
-    private readonly IVsEditorAdaptersFactoryService? adapters;
+    private readonly IVsRunningDocumentTable? _table;
+    private readonly IVsEditorAdaptersFactoryService? _adapters;
 
     public DocumentService(IVsRunningDocumentTable? table, IVsEditorAdaptersFactoryService? adapters = null)
     {
-        this.table = table;
-        this.adapters = adapters;
+        this._table = table;
+        this._adapters = adapters;
     }
 
     public JObject LanguageStatus(string path)
@@ -37,7 +37,7 @@ internal sealed class DocumentService
             ["diagnosticsFreshness"] = "unknown",
             ["note"] = "Editor content type or an empty diagnostic list does not confirm Angular Language Service is running."
         };
-        if (!(table is IVsRunningDocumentTable4 current) || !current.IsMonikerValid(path))
+        if (_table is not IVsRunningDocumentTable4 current || !current.IsMonikerValid(path))
         {
             result["unavailableReason"] = "Document is not open in the Running Document Table.";
             return result;
@@ -62,11 +62,11 @@ internal sealed class DocumentService
             }
         }
 
-        if (data is IVsTextBuffer buffer && adapters != null)
+        if (data is IVsTextBuffer buffer && _adapters != null)
         {
             try
             {
-                var managed = adapters.GetDocumentBuffer(buffer);
+                var managed = _adapters.GetDocumentBuffer(buffer);
                 if (managed != null)
                 {
                     result["contentType"] = managed.ContentType.TypeName;
@@ -87,12 +87,12 @@ internal sealed class DocumentService
     public JObject Read()
     {
         ThreadHelper.ThrowIfNotOnUIThread();
-        if (table == null)
+        if (_table == null)
         {
             throw new ProxyException("serviceUnavailable", "Running Document Table is unavailable.");
         }
 
-        ErrorHandler.ThrowOnFailure(table.GetRunningDocumentsEnum(out var enumerator));
+        ErrorHandler.ThrowOnFailure(_table.GetRunningDocumentsEnum(out var enumerator));
         var items = new JArray();
         var cookies = new uint[1];
         while (true)
@@ -108,14 +108,14 @@ internal sealed class DocumentService
             var item = new JObject { ["cookie"] = cookies[0], ["dirty"] = null };
             try
             {
-                ErrorHandler.ThrowOnFailure(table.GetDocumentInfo(cookies[0], out _, out _, out _, out var path, out var hierarchy, out _, out data));
+                ErrorHandler.ThrowOnFailure(_table.GetDocumentInfo(cookies[0], out _, out _, out _, out var path, out var hierarchy, out _, out data));
                 item["path"] = path;
                 if (hierarchy != null && hierarchy.GetProperty(VSConstants.VSITEMID_ROOT, (int)__VSHPROPID.VSHPROPID_Name, out var name) >= 0)
                 {
                     item["project"] = name as string;
                 }
 
-                if (table is IVsRunningDocumentTable4 currentTable)
+                if (_table is IVsRunningDocumentTable4 currentTable)
                 {
                     currentTable.UpdateDirtyState(cookies[0]);
                     item["dirty"] = currentTable.IsDocumentDirty(cookies[0]);
@@ -180,7 +180,7 @@ internal sealed class DocumentService
                     throw new InvalidOperationException("Document has no valid running document cookie.");
                 }
 
-                ErrorHandler.ThrowOnFailure(table!.GetDocumentInfo(cookie, out _, out _, out _, out var path, out _, out _, out data));
+                ErrorHandler.ThrowOnFailure(_table!.GetDocumentInfo(cookie, out _, out _, out _, out var path, out _, out _, out data));
                 if (!string.Equals(path, (string?)item["path"], StringComparison.OrdinalIgnoreCase))
                 {
                     throw new InvalidOperationException("Document changed before save.");
@@ -196,7 +196,7 @@ internal sealed class DocumentService
                 {
                     // Solution/project documents can be persisted by their owning hierarchy
                     // without exposing IVsPersistDocData. Let the shell route the exact cookie.
-                    results.Add(SaveThroughRunningDocumentTable(table, cookie, path));
+                    results.Add(SaveThroughRunningDocumentTable(_table, cookie, path));
                 }
             }
             catch (Exception exception)
@@ -222,7 +222,7 @@ internal sealed class DocumentService
             throw new InvalidOperationException("Document has no valid running document cookie.");
         }
 
-        if (!(table is IVsRunningDocumentTable4 current))
+        if (table is not IVsRunningDocumentTable4 current)
         {
             throw new InvalidOperationException("Document save requires Running Document Table state verification.");
         }

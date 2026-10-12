@@ -13,13 +13,13 @@ namespace VsAgentProxy;
 
 internal sealed class OutputService
 {
-    private readonly DTE2 dte;
-    private readonly IVsOutputWindow? outputWindow;
+    private readonly DTE2 _dte;
+    private readonly IVsOutputWindow? _outputWindow;
 
     public OutputService(DTE2 dte, IVsOutputWindow? outputWindow)
     {
-        this.dte = dte;
-        this.outputWindow = outputWindow;
+        this._dte = dte;
+        this._outputWindow = outputWindow;
     }
 
     public object Read(JObject parameters)
@@ -41,7 +41,7 @@ internal sealed class OutputService
         var count = ProtocolSupport.Integer(parameters, parameters["count"] != null ? "count" : "maxChars", 20000, 1, 200000);
         int? offset = parameters["offset"] == null ? null : ProtocolSupport.Integer(parameters, "offset", 0, 0, int.MaxValue);
         var panes = new List<OutputWindowPane>();
-        foreach (OutputWindowPane pane in dte.ToolWindows.OutputWindow.OutputWindowPanes)
+        foreach (OutputWindowPane pane in _dte.ToolWindows.OutputWindow.OutputWindowPanes)
         {
             panes.Add(pane);
         }
@@ -61,11 +61,7 @@ internal sealed class OutputService
             return id != null
             ? Guid.TryParse(p.Guid, out var guid) && guid == requestedId
             : string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase);
-        });
-        if (selected == null)
-        {
-            throw new ProxyException("outputPaneNotFound", "Output pane not found: " + (id ?? name));
-        }
+        }) ?? throw new ProxyException("outputPaneNotFound", "Output pane not found: " + (id ?? name));
 
         try
         {
@@ -83,9 +79,9 @@ internal sealed class OutputService
     private object ReadAfterInitialization(OutputWindowPane selected, int? offset, int count)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
-        var output = dte.ToolWindows.OutputWindow;
+        var output = _dte.ToolWindows.OutputWindow;
         var previousPane = output.ActivePane;
-        var previousWindow = dte.ActiveWindow;
+        var previousWindow = _dte.ActiveWindow;
         var outputWasVisible = output.Parent.Visible;
         var restorationErrors = new JArray();
         JObject? result = null;
@@ -114,10 +110,7 @@ internal sealed class OutputService
         {
             try
             {
-                if (previousPane != null)
-                {
-                    previousPane.Activate();
-                }
+                previousPane?.Activate();
             }
             catch (Exception exception)
             {
@@ -138,7 +131,7 @@ internal sealed class OutputService
 
             try
             {
-                if (previousWindow != null && dte.ActiveWindow != previousWindow)
+                if (previousWindow != null && _dte.ActiveWindow != previousWindow)
                 {
                     previousWindow.Activate();
                 }
@@ -154,10 +147,7 @@ internal sealed class OutputService
                 result["paneSelectionRestored"] = previousPane != null && !restorationErrors.OfType<JObject>().Any(e => (string?)e["field"] == "previousPane");
             }
 
-            if (failure != null)
-            {
-                failure.Details["restorationErrors"] = restorationErrors;
-            }
+            failure?.Details["restorationErrors"] = restorationErrors;
         }
     }
 
@@ -166,11 +156,11 @@ internal sealed class OutputService
         ThreadHelper.ThrowIfNotOnUIThread();
         var errors = new JArray();
         // Use the pane's own buffer and read only the requested range.
-        if (outputWindow != null && Guid.TryParse(selected.Guid, out var paneGuid))
+        if (_outputWindow != null && Guid.TryParse(selected.Guid, out var paneGuid))
         {
             try
             {
-                ErrorHandler.ThrowOnFailure(outputWindow.GetPane(ref paneGuid, out var nativePane));
+                ErrorHandler.ThrowOnFailure(_outputWindow.GetPane(ref paneGuid, out var nativePane));
                 var buffer = nativePane as IVsTextLines;
                 if (buffer == null && nativePane is IVsTextBufferProvider provider)
                 {
@@ -185,16 +175,16 @@ internal sealed class OutputService
                 if (buffer != null)
                 {
                     ErrorHandler.ThrowOnFailure(buffer.GetSize(out var length));
-                    var range = ProtocolSupport.Range(length, offset, count);
+                    var (Offset, Count) = ProtocolSupport.Range(length, offset, count);
                     var text = string.Empty;
-                    if (range.Count > 0)
+                    if (Count > 0)
                     {
-                        ErrorHandler.ThrowOnFailure(buffer.GetLineIndexOfPosition(range.Offset, out var startLine, out var startColumn));
-                        ErrorHandler.ThrowOnFailure(buffer.GetLineIndexOfPosition(range.Offset + range.Count, out var endLine, out var endColumn));
+                        ErrorHandler.ThrowOnFailure(buffer.GetLineIndexOfPosition(Offset, out var startLine, out var startColumn));
+                        ErrorHandler.ThrowOnFailure(buffer.GetLineIndexOfPosition(Offset + Count, out var endLine, out var endColumn));
                         ErrorHandler.ThrowOnFailure(buffer.GetLineText(startLine, startColumn, endLine, endColumn, out text));
                     }
 
-                    return Result(selected, text, range.Offset, length, "textBuffer");
+                    return Result(selected, text, Offset, length, "textBuffer");
                 }
 
                 errors.Add(new JObject { ["field"] = "textBuffer", ["message"] = "The pane does not expose a text buffer." });
@@ -213,8 +203,8 @@ internal sealed class OutputService
             var start = document.StartPoint.CreateEditPoint();
             // DTE fallback retains the established UTF-16/CRLF offset contract.
             var text = start.AtEndOfDocument ? string.Empty : start.GetText(document.EndPoint);
-            var range = ProtocolSupport.Range(text.Length, offset, count);
-            return Result(selected, text.Substring(range.Offset, range.Count), range.Offset, text.Length, "dte");
+            var (Offset, Count) = ProtocolSupport.Range(text.Length, offset, count);
+            return Result(selected, text.Substring(Offset, Count), Offset, text.Length, "dte");
         }
         catch (Exception exception)
         {

@@ -12,27 +12,27 @@ namespace VsAgentProxy;
 // Passive debugger observer. Never resumes synchronous events or changes engine state.
 internal sealed class EngineEvents : IDebugEventCallback2, IDisposable
 {
-    private readonly IVsDebugger? debugger;
-    private readonly JoinableTaskFactory factory;
-    private readonly OperationRegistry operations;
-    private bool subscribed;
-    private volatile bool disposed;
+    private readonly IVsDebugger? _debugger;
+    private readonly JoinableTaskFactory _factory;
+    private readonly OperationRegistry _operations;
+    private bool _subscribed;
+    private volatile bool _disposed;
 
     public EngineEvents(IVsDebugger? debugger, JoinableTaskFactory factory, OperationRegistry operations)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
-        this.debugger = debugger;
-        this.factory = factory;
-        this.operations = operations;
+        this._debugger = debugger;
+        this._factory = factory;
+        this._operations = operations;
         if (debugger != null)
         {
-            subscribed = debugger.AdviseDebugEventCallback(this) >= 0;
+            _subscribed = debugger.AdviseDebugEventCallback(this) >= 0;
         }
     }
 
     public int Event(IDebugEngine2 engine, IDebugProcess2 process, IDebugProgram2 program, IDebugThread2 thread, IDebugEvent2 debugEvent, ref Guid eventId, uint attributes)
     {
-        if (disposed)
+        if (_disposed)
         {
             return VSConstants.S_OK;
         }
@@ -98,12 +98,12 @@ internal sealed class EngineEvents : IDebugEventCallback2, IDisposable
                 data["observedUtc"] = DateTime.UtcNow;
                 var capturedKind = kind;
                 var capturedData = data;
-                factory.RunAsync(async () =>
+                _factory.RunAsync(async () =>
                 {
-                    await factory.SwitchToMainThreadAsync();
-                    if (!disposed)
+                    await _factory.SwitchToMainThreadAsync();
+                    if (!_disposed)
                     {
-                        operations.Emit(capturedKind, capturedData);
+                        _operations.Emit(capturedKind, capturedData);
                     }
                 }).Task.Forget();
             }
@@ -211,11 +211,11 @@ internal sealed class EngineEvents : IDebugEventCallback2, IDisposable
     public void Dispose()
     {
         ThreadHelper.ThrowIfNotOnUIThread();
-        disposed = true;
-        if (subscribed)
+        _disposed = true;
+        if (_subscribed)
         {
-            debugger?.UnadviseDebugEventCallback(this);
-            subscribed = false;
+            _debugger?.UnadviseDebugEventCallback(this);
+            _subscribed = false;
         }
     }
 }

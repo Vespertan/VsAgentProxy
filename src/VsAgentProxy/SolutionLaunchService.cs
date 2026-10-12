@@ -12,15 +12,15 @@ namespace VsAgentProxy;
 
 internal sealed class SolutionLaunchService
 {
-    private readonly ProjectService projects;
-    private readonly LaunchService launches;
-    private readonly DocumentService documents;
+    private readonly ProjectService _projects;
+    private readonly LaunchService _launches;
+    private readonly DocumentService _documents;
 
     public SolutionLaunchService(ProjectService projects, LaunchService launches, DocumentService documents)
     {
-        this.projects = projects;
-        this.launches = launches;
-        this.documents = documents;
+        this._projects = projects;
+        this._launches = launches;
+        this._documents = documents;
     }
 
     public async Task<JObject> ReadAsync(CancellationToken token)
@@ -32,9 +32,9 @@ internal sealed class SolutionLaunchService
             var profiles = await native.ProfilesAsync(token);
             return Describe(native, profiles);
         }
-        catch (Exception e) when (!(e is OperationCanceledException))
+        catch (Exception e) when (e is not OperationCanceledException)
         {
-            var fallback = DiskProfiles((string?)projects.Read()["solution"]);
+            var fallback = DiskProfiles((string?)_projects.Read()["solution"]);
             fallback["readError"] = ProtocolSupport.ReadError("nativeSolutionProfiles", e);
             return fallback;
         }
@@ -110,8 +110,8 @@ internal sealed class SolutionLaunchService
     public async Task<JObject> SelectAsync(JObject parameters, CancellationToken token)
     {
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(token);
-        projects.RequireIdle();
-        documents.RequireClean();
+        _projects.RequireIdle();
+        _documents.RequireClean();
         var name = ProtocolSupport.String(parameters, "name") ?? throw new ArgumentException("name is required.");
         var native = new NativeSolutionLaunch();
         var profiles = await native.ProfilesAsync(token);
@@ -125,16 +125,16 @@ internal sealed class SolutionLaunchService
         foreach (var row in requested.OfType<JObject>().Where(x => x["debugTarget"]?.Type == JTokenType.String))
         {
             var id = (string)row["id"]!;
-            previousTargets[id] = launches.ReadSelection(launches.Selection(projects.Find(id)));
+            previousTargets[id] = _launches.ReadSelection(_launches.Selection(_projects.Find(id)));
         }
 
-        var solution = (string?)projects.Read()["solution"];
-        projects.RequireIdle();
-        documents.RequireClean();
+        var solution = (string?)_projects.Read()["solution"];
+        _projects.RequireIdle();
+        _documents.RequireClean();
         try
         {
             await native.ApplyAsync(profiles[index], token);
-            if (!string.Equals(solution, (string?)projects.Read()["solution"], StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(solution, (string?)_projects.Read()["solution"], StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException("The solution changed while applying the profile.");
             }
@@ -165,7 +165,7 @@ internal sealed class SolutionLaunchService
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             var details = new JObject { ["rollbackAttempted"] = false, ["requestedProfile"] = name };
-            if (string.Equals(solution, (string?)projects.Read()["solution"], StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(solution, (string?)_projects.Read()["solution"], StringComparison.OrdinalIgnoreCase))
             {
                 details["rollbackAttempted"] = true;
                 var rollbackErrors = new JArray();
@@ -193,7 +193,7 @@ internal sealed class SolutionLaunchService
                 {
                     try
                     {
-                        launches.Selection(projects.Find(pair.Key)).SetCurrentDebugTarget(Guid.Parse((string)pair.Value["activeTargetType"]!),
+                        _launches.Selection(_projects.Find(pair.Key)).SetCurrentDebugTarget(Guid.Parse((string)pair.Value["activeTargetType"]!),
                         (uint)pair.Value["activeTargetTypeId"]!, (string)pair.Value["activeProfile"]!);
                     }
                     catch (Exception rollback)
@@ -233,7 +233,7 @@ internal sealed class SolutionLaunchService
         var result = new JArray();
         foreach (var item in ((JArray)profile["projects"]!).OfType<JObject>())
         {
-            var project = projects.Find((string)item["Path"]!);
+            var project = _projects.Find((string)item["Path"]!);
             if ((string?)project["loadState"] != "loaded")
             {
                 throw new ProxyException("projectNotLoaded", "Profile project must be loaded: " + (string?)project["path"]);
@@ -244,7 +244,7 @@ internal sealed class SolutionLaunchService
             var target = (string?)item["DebugTarget"];
             if (validateTargets && !string.IsNullOrEmpty(target))
             {
-                var selection = launches.ReadSelection(launches.Selection(project));
+                var selection = _launches.ReadSelection(_launches.Selection(project));
                 if (((JArray)selection["profiles"]!).Count(x => (string?)x["name"] == target) != 1)
                 {
                     throw new ProxyException("profileNotFound", "Debug target must identify one IDE target: " + target);
@@ -269,7 +269,7 @@ internal sealed class SolutionLaunchService
         {
             var item = enumerator.Current;
             var rawId = NativeSolutionLaunch.Property(item, "ProjectGuid");
-            if (!(rawId is Guid id))
+            if (rawId is not Guid id)
             {
                 throw new ProxyException("unsupported", "VS returned a startup project without ProjectGuid.");
             }
@@ -284,7 +284,7 @@ internal sealed class SolutionLaunchService
             };
             try
             {
-                row["debugTarget"] = launches.ReadSelection(launches.Selection(projects.Find(id.ToString("D"))))["activeProfile"]!.DeepClone();
+                row["debugTarget"] = _launches.ReadSelection(_launches.Selection(_projects.Find(id.ToString("D"))))["activeProfile"]!.DeepClone();
             }
             catch (Exception e)
             {

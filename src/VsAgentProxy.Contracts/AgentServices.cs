@@ -5,13 +5,6 @@ using Microsoft.ServiceHub.Framework;
 
 namespace VsAgentProxy.Contracts;
 
-public interface IAgentService : IDisposable
-{
-    /// <summary>Existing command envelope and result JSON. RPC owns framing,
-    /// cancellation and connection lifetime; domain operations keep their IDs.</summary>
-    Task<string> ExecuteAsync(string requestJson, CancellationToken cancellationToken);
-}
-
 public static class AgentServices
 {
     public const string Name = "Vespertan.VsAgent";

@@ -10,13 +10,13 @@ namespace VsAgentProxy.Tests;
 
 public sealed class DocumentSaveTests
 {
-    private const string SolutionPath = @"C:\Test\Solution.slnx";
+    private const string _solutionPath = @"C:\Test\Solution.slnx";
 
     [Fact]
     public void HierarchyDocumentSaveTargetsOneCookieAndVerifiesFreshDirtyState()
     {
         var table = new DocumentTable();
-        var result = DocumentService.SaveThroughRunningDocumentTable(table.Instance, 7, SolutionPath);
+        var result = DocumentService.SaveThroughRunningDocumentTable(table.Instance, 7, _solutionPath);
 
         Assert.True(result.Value<bool>("saved"));
         Assert.False(result.Value<bool>("cancelled"));
@@ -30,7 +30,7 @@ public sealed class DocumentSaveTests
     public void SuccessRequiresBothSuccessfulSaveAndConfirmedCleanState(int hr, bool staysDirty, bool cancelled)
     {
         var table = new DocumentTable { SaveResult = hr, StaysDirty = staysDirty };
-        var result = DocumentService.SaveThroughRunningDocumentTable(table.Instance, 7, SolutionPath);
+        var result = DocumentService.SaveThroughRunningDocumentTable(table.Instance, 7, _solutionPath);
         Assert.False(result.Value<bool>("saved"));
         Assert.Equal(cancelled, result.Value<bool>("cancelled"));
     }
@@ -39,7 +39,7 @@ public sealed class DocumentSaveTests
     public void SaveFailureIsNotReportedAsSuccess()
     {
         var table = new DocumentTable { SaveResult = VSConstants.E_FAIL };
-        Assert.ThrowsAny<Exception>(() => DocumentService.SaveThroughRunningDocumentTable(table.Instance, 7, SolutionPath));
+        Assert.ThrowsAny<Exception>(() => DocumentService.SaveThroughRunningDocumentTable(table.Instance, 7, _solutionPath));
         Assert.Equal(new[] { "save:7" }, table.Calls);
     }
 
@@ -49,7 +49,7 @@ public sealed class DocumentSaveTests
     public void MissingOrReplacedCookieCannotSaveOtherDocuments(uint cookie)
     {
         var table = new DocumentTable();
-        Assert.Throws<InvalidOperationException>(() => DocumentService.SaveThroughRunningDocumentTable(table.Instance, cookie, SolutionPath));
+        Assert.Throws<InvalidOperationException>(() => DocumentService.SaveThroughRunningDocumentTable(table.Instance, cookie, _solutionPath));
         Assert.Empty(table.Calls);
     }
 
@@ -57,7 +57,7 @@ public sealed class DocumentSaveTests
     public void DocumentReplacedDuringSaveCannotBeReportedAsSaved()
     {
         var table = new DocumentTable { ReplaceDuringSave = true };
-        Assert.Throws<InvalidOperationException>(() => DocumentService.SaveThroughRunningDocumentTable(table.Instance, 7, SolutionPath));
+        Assert.Throws<InvalidOperationException>(() => DocumentService.SaveThroughRunningDocumentTable(table.Instance, 7, _solutionPath));
         Assert.Equal(new[] { "save:7" }, table.Calls);
     }
 
@@ -65,18 +65,19 @@ public sealed class DocumentSaveTests
     public void DirtyStateReadFailureCannotBeReportedAsSaved()
     {
         var table = new DocumentTable { FailRefresh = true };
-        Assert.Throws<InvalidOperationException>(() => DocumentService.SaveThroughRunningDocumentTable(table.Instance, 7, SolutionPath));
+        Assert.Throws<InvalidOperationException>(() => DocumentService.SaveThroughRunningDocumentTable(table.Instance, 7, _solutionPath));
     }
 
-    public interface ITestDocumentTable : IVsRunningDocumentTable, IVsRunningDocumentTable4 { }
+    public interface ITestDocumentTable : IVsRunningDocumentTable, IVsRunningDocumentTable4
+    { }
 
     private sealed class DocumentTable : RealProxy
     {
-        public readonly List<string> Calls = new List<string>();
-        public readonly Dictionary<uint, bool> Dirty = new Dictionary<uint, bool> { [7] = true, [8] = true };
+        public readonly List<string> Calls = [];
+        public readonly Dictionary<uint, bool> Dirty = new() { [7] = true, [8] = true };
         public int SaveResult = VSConstants.S_OK;
         public bool StaysDirty, ReplaceDuringSave, FailRefresh;
-        private uint currentCookie = 7;
+        private uint _currentCookie = 7;
         public IVsRunningDocumentTable Instance => (IVsRunningDocumentTable)GetTransparentProxy();
 
         public DocumentTable() : base(typeof(ITestDocumentTable)) { }
@@ -90,10 +91,10 @@ public sealed class DocumentSaveTests
                 switch (call.MethodName)
                 {
                     case "IsMonikerValid":
-                        result = (string)call.Args[0] == SolutionPath;
+                        result = (string)call.Args[0] == _solutionPath;
                         break;
                     case "GetDocumentCookie":
-                        result = currentCookie;
+                        result = _currentCookie;
                         break;
                     case "SaveDocuments":
                         var flags = (uint)call.Args[0];
@@ -106,7 +107,7 @@ public sealed class DocumentSaveTests
                         Calls.Add("save:" + cookie);
                         if (ReplaceDuringSave)
                         {
-                            currentCookie = 9;
+                            _currentCookie = 9;
                         }
 
                         result = SaveResult;

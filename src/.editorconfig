@@ -1,14 +1,19 @@
 # Remove the line below if you want to inherit .editorconfig settings from higher directories
 root = true
 
+[*]
+end_of_line = lf
+insert_final_newline = true
+indent_size = 4
+indent_style = space
+
+[*.{bat,cmd}]
+end_of_line = crlf
+
 # C# files
 [*.cs]
 
 #### Core EditorConfig Options ####
-
-# Indentation and spacing
-indent_size = 4
-indent_style = space
 
 # New line preferences
 end_of_line = lf
@@ -225,3 +230,9 @@ dotnet_naming_style.underscore_camel_case.capitalization = camel_case
 dotnet_naming_rule.private_fields_underscore.symbols = private_fields
 dotnet_naming_rule.private_fields_underscore.style = underscore_camel_case
 dotnet_naming_rule.private_fields_underscore.severity = warning
+
+# RCS1194: Implement exception constructors
+dotnet_diagnostic.RCS1194.severity = none
+dotnet_diagnostic.RCS1118.severity = none
+dotnet_diagnostic.RCS1251.severity = none
+dotnet_diagnostic.RCS1060.severity = warning

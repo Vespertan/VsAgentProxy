@@ -10,21 +10,21 @@ namespace VsAgentProxy;
 
 internal sealed class DebugInspectionService
 {
-    private readonly DTE2 dte;
-    private readonly IdeEvents events;
-    private readonly Dictionary<string, Expressions> references = new();
+    private readonly DTE2 _dte;
+    private readonly IdeEvents _events;
+    private readonly Dictionary<string, Expressions> _references = [];
 
     public DebugInspectionService(DTE2 dte, IdeEvents events)
     {
-        this.dte = dte;
-        this.events = events;
-        events.ContextInvalidated += () => references.Clear();
+        this._dte = dte;
+        this._events = events;
+        events.ContextInvalidated += () => _references.Clear();
     }
 
     public void RequireBreak()
     {
         ThreadHelper.ThrowIfNotOnUIThread();
-        if (dte.Debugger.CurrentMode != dbgDebugMode.dbgBreakMode)
+        if (_dte.Debugger.CurrentMode != dbgDebugMode.dbgBreakMode)
         {
             throw new ProxyException("requiresBreakMode", "Debugger inspection requires break mode.");
         }
@@ -32,13 +32,13 @@ internal sealed class DebugInspectionService
 
     private string Reference(Expressions expressions)
     {
-        if (references.Count >= 2048)
+        if (_references.Count >= 2048)
         {
             throw new ProxyException("referenceLimit", "Variable reference limit reached for this stop.");
         }
 
-        var id = events.StopGeneration + ":" + Guid.NewGuid().ToString("N");
-        references.Add(id, expressions);
+        var id = _events.StopGeneration + ":" + Guid.NewGuid().ToString("N");
+        _references.Add(id, expressions);
         return id;
     }
 
@@ -47,7 +47,7 @@ internal sealed class DebugInspectionService
         ThreadHelper.ThrowIfNotOnUIThread();
         RequireBreak();
         var index = ProtocolSupport.Integer(parameters, "frameIndex", 0, 0, 10000);
-        var frames = dte.Debugger.CurrentThread.StackFrames;
+        var frames = _dte.Debugger.CurrentThread.StackFrames;
         if (index >= frames.Count)
         {
             throw new ArgumentException("frameIndex is out of range.");
@@ -57,7 +57,7 @@ internal sealed class DebugInspectionService
         return new JObject
         {
             ["frameIndex"] = index,
-            ["generation"] = events.StopGeneration,
+            ["generation"] = _events.StopGeneration,
             ["scopes"] = new JArray(new JObject { ["name"] = "Locals", ["reference"] = Reference(frame.Locals) },
                 new JObject { ["name"] = "Arguments", ["reference"] = Reference(frame.Arguments) }),
             ["source"] = "DTE",
@@ -69,7 +69,7 @@ internal sealed class DebugInspectionService
     {
         ThreadHelper.ThrowIfNotOnUIThread();
         var id = ProtocolSupport.String(parameters, "reference") ?? throw new ArgumentException("reference is required.");
-        if (!references.TryGetValue(id, out var expressions))
+        if (!_references.TryGetValue(id, out var expressions))
         {
             throw new ProxyException("staleReference", "Unknown or expired variable reference. Request scopes at the current stop.");
         }
@@ -120,7 +120,7 @@ internal sealed class DebugInspectionService
             ["offset"] = Math.Min(offset, total),
             ["totalCount"] = total,
             ["hasMore"] = offset < total - items.Count,
-            ["generation"] = events.StopGeneration,
+            ["generation"] = _events.StopGeneration,
             ["source"] = "DTE.DataMembers"
         };
     }
@@ -129,9 +129,9 @@ internal sealed class DebugInspectionService
     {
         ThreadHelper.ThrowIfNotOnUIThread();
         var items = new JArray();
-        foreach (Process process in dte.Debugger.DebuggedProcesses)
+        foreach (Process process in _dte.Debugger.DebuggedProcesses)
         {
-            items.Add(new JObject { ["id"] = process.ProcessID, ["name"] = process.Name, ["current"] = process.ProcessID == dte.Debugger.CurrentProcess?.ProcessID });
+            items.Add(new JObject { ["id"] = process.ProcessID, ["name"] = process.Name, ["current"] = process.ProcessID == _dte.Debugger.CurrentProcess?.ProcessID });
         }
 
         return new JObject { ["processes"] = items, ["scope"] = "debuggedProcesses" };
@@ -142,9 +142,9 @@ internal sealed class DebugInspectionService
         ThreadHelper.ThrowIfNotOnUIThread();
         RequireBreak();
         var items = new JArray();
-        foreach (Thread thread in dte.Debugger.CurrentProgram.Threads)
+        foreach (Thread thread in _dte.Debugger.CurrentProgram.Threads)
         {
-            items.Add(new JObject { ["id"] = thread.ID, ["name"] = thread.Name, ["current"] = thread.ID == dte.Debugger.CurrentThread?.ID, ["frozen"] = thread.IsFrozen });
+            items.Add(new JObject { ["id"] = thread.ID, ["name"] = thread.Name, ["current"] = thread.ID == _dte.Debugger.CurrentThread?.ID, ["frozen"] = thread.IsFrozen });
         }
 
         return new JObject { ["threads"] = items, ["scope"] = "currentProgram" };
@@ -161,7 +161,7 @@ internal sealed class DebugInspectionService
         }
 
         Thread? selected = null;
-        foreach (Thread thread in dte.Debugger.CurrentProgram.Threads)
+        foreach (Thread thread in _dte.Debugger.CurrentProgram.Threads)
         {
             if (thread.ID == threadId)
             {
@@ -180,9 +180,9 @@ internal sealed class DebugInspectionService
             throw new ArgumentException("frameIndex is out of range.");
         }
 
-        events.Invalidate();
-        dte.Debugger.CurrentThread = selected;
-        dte.Debugger.CurrentStackFrame = selected.StackFrames.Item(frame + 1);
-        return new JObject { ["threadId"] = dte.Debugger.CurrentThread.ID, ["frameIndex"] = frame, ["generation"] = events.StopGeneration };
+        _events.Invalidate();
+        _dte.Debugger.CurrentThread = selected;
+        _dte.Debugger.CurrentStackFrame = selected.StackFrames.Item(frame + 1);
+        return new JObject { ["threadId"] = _dte.Debugger.CurrentThread.ID, ["frameIndex"] = frame, ["generation"] = _events.StopGeneration };
     }
 }
