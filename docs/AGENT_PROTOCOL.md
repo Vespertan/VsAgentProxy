@@ -3,7 +3,7 @@
 ## 1. Purpose and architecture
 
 VS Agent Proxy 0.8 runs inside `devenv.exe` and registers the brokered service
-`Vespertan.VsAgent/1.0`. It owns debugger operations, not a pipe server.
+`Vespertan.VisualStudio.AgentProxy/1.0`. It owns debugger operations, not a pipe server.
 Vespertan Extensions Hub 1.7 owns the central endpoint `VisualStudio.Hub-{PID}`.
 The client uses HubConnection and the Visual Studio remote service broker over
 StreamJsonRpc and a multiplexed named pipe. Only explicitly published services
@@ -43,14 +43,14 @@ loss is an error. Selection here means Solution Explorer nodes, not editor text.
 from the repository:
 
 ```powershell
-dotnet pack .\src\VsAgentProxy.Client\VsAgentProxy.Client.csproj -c Release --no-restore
-dotnet tool install --global --configfile .\NuGet.Tool.config VsAgentProxy.Client --version 0.8.0
+dotnet pack .\src\Vespertan.VisualStudio.AgentProxy.Client\Vespertan.VisualStudio.AgentProxy.Client.csproj -c Release --no-restore
+dotnet tool install --global --configfile .\NuGet.Tool.config Vespertan.VisualStudio.AgentProxy.Client --version 0.8.0
 ```
 
 Fallback without a global installation:
 
 ```powershell
-dotnet run --project .\src\VsAgentProxy.Client --no-build -- --pid 12345 status
+dotnet run --project .\src\Vespertan.VisualStudio.AgentProxy.Client --no-build -- --pid 12345 status
 ```
 
 ### Selecting an instance
@@ -555,13 +555,13 @@ readiness control are outside this version.
 ## 9. Building and updating
 
 ```powershell
-dotnet build .\src\VsAgentProxy.slnx
+dotnet build .\src\Vespertan.VisualStudio.AgentProxy.slnx
 ```
 
 Output:
 
 ```text
-src\VsAgentProxy\bin\Debug\net472\VsAgentProxy.vsix
+src\Vespertan.VisualStudio.AgentProxy\bin\Debug\net472\Vespertan.VisualStudio.AgentProxy.vsix
 ```
 
 After changing the extension, install the new VSIX and restart Visual Studio.

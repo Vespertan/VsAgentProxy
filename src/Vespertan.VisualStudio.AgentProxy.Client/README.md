@@ -1,6 +1,6 @@
-# VsAgentProxy.Client
+# Vespertan.VisualStudio.AgentProxy.Client
 
-`VsAgentProxy.Client` is the .NET global tool client for the VS Agent Proxy
+`Vespertan.VisualStudio.AgentProxy.Client` is the .NET global tool client for the VS Agent Proxy
 Visual Studio extension.
 
 It connects to a running Visual Studio instance through Vespertan Extensions Hub's local
@@ -15,7 +15,7 @@ and launch-profile management, diagnostics, Output access, and execution control
 ## Install
 
 ```powershell
-dotnet tool install --global VsAgentProxy.Client
+dotnet tool install --global Vespertan.VisualStudio.AgentProxy.Client
 ```
 
 ## Quick start

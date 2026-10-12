@@ -1,4 +1,4 @@
-﻿<Project>
+<Project>
   <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
@@ -18,7 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../VsAgentProxy.Contracts/VsAgentProxy.Contracts.csproj" />
+    <ProjectReference Include="../Vespertan.VisualStudio.AgentProxy.Contracts/Vespertan.VisualStudio.AgentProxy.Contracts.csproj" />
     <PackageReference Include="Roslynator.Analyzers" Version="5.0.1">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -50,7 +50,7 @@
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
     <EmbeddedResource Include="..\..\docs\AGENT_PROTOCOL.md" Link="AgentProtocol.md">
-      <LogicalName>VsAgentProxy.AgentProtocol.md</LogicalName>
+      <LogicalName>Vespertan.VisualStudio.AgentProxy.AgentProtocol.md</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
 

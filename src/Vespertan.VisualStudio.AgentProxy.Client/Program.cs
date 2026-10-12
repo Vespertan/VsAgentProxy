@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Reflection;
+using Vespertan.VisualStudio.AgentProxy.Client;
 
 try
 {

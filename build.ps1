@@ -15,9 +15,9 @@ foreach ($project in @('Contracts', 'Vsct')) {
     & dotnet pack (Join-Path $HubRoot "src/Vespertan.VisualStudio.$project/Vespertan.VisualStudio.$project.csproj") -c $Configuration -o $feed --nologo -v:q
     if ($LASTEXITCODE -ne 0) { throw "Hub package failed: $project" }
 }
-& $msbuild (Join-Path $PSScriptRoot 'src/VsAgentProxy.slnx') /restore "/p:Configuration=$Configuration" /p:DeployExtension=false /nologo /v:minimal
-if ($LASTEXITCODE -ne 0) { throw 'VsAgentProxy build failed.' }
+& $msbuild (Join-Path $PSScriptRoot 'src/Vespertan.VisualStudio.AgentProxy.slnx') /restore "/p:Configuration=$Configuration" /p:DeployExtension=false /nologo /v:minimal
+if ($LASTEXITCODE -ne 0) { throw 'Vespertan.VisualStudio.AgentProxy build failed.' }
 if ($Test) {
-    & dotnet test (Join-Path $PSScriptRoot 'src/VsAgentProxy.Tests/VsAgentProxy.Tests.csproj') -c $Configuration --no-build --no-restore --nologo
-    if ($LASTEXITCODE -ne 0) { throw 'VsAgentProxy tests failed.' }
+    & dotnet test (Join-Path $PSScriptRoot 'src/Vespertan.VisualStudio.AgentProxy.Tests/Vespertan.VisualStudio.AgentProxy.Tests.csproj') -c $Configuration --no-build --no-restore --nologo
+    if ($LASTEXITCODE -ne 0) { throw 'Vespertan.VisualStudio.AgentProxy tests failed.' }
 }

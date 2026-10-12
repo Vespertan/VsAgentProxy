@@ -43,7 +43,7 @@ extension development workload is required.
 ```
 
 Install **Vespertan Visual Studio Hub 1.7.0 or newer (below 2.0)** first, then the generated `.vsix` from
-`src/VsAgentProxy/bin/Release/net472`. Restart Visual Studio afterwards; the
+`src/Vespertan.VisualStudio.AgentProxy/bin/Release/net472`. Restart Visual Studio afterwards; the
 extension starts in the background.
 
 **Extensions → Vespertan → Agent Proxy status** displays the pipe path, Visual
@@ -60,12 +60,12 @@ and its native Visual Studio 2026 settings. The proxy does not bundle the Hub DL
 Install the client globally:
 
 ```powershell
-dotnet pack ./src/VsAgentProxy.Client/VsAgentProxy.Client.csproj -c Release --no-restore
-dotnet tool install --global --configfile ./NuGet.Tool.config VsAgentProxy.Client --version 0.8.0
+dotnet pack ./src/Vespertan.VisualStudio.AgentProxy.Client/Vespertan.VisualStudio.AgentProxy.Client.csproj -c Release --no-restore
+dotnet tool install --global --configfile ./NuGet.Tool.config Vespertan.VisualStudio.AgentProxy.Client --version 0.8.0
 ```
 
 This build requires Hub 1.7+ and a CLI built against the same contracts.
-The proxy registers `Vespertan.VsAgent/1.0`; Hub owns transport and routes service
+The proxy registers `Vespertan.VisualStudio.AgentProxy/1.0`; Hub owns transport and routes service
 requests. `instances` verifies Hub health and VsAgent availability separately.
 The runtime dependency is `Vespertan.VisualStudio.Contracts` 1.4.0,
 which also contains `HubConnection` for the CLI.
@@ -102,34 +102,34 @@ vsagent --pid 12345 events --afterSequence 0
 Update the installed version with:
 
 ```powershell
-dotnet tool update --global --configfile ./NuGet.Tool.config VsAgentProxy.Client
+dotnet tool update --global --configfile ./NuGet.Tool.config Vespertan.VisualStudio.AgentProxy.Client
 ```
 
 The client can also be run without a global installation:
 
 ```powershell
-dotnet run --project ./src/VsAgentProxy.Client -- instances
-dotnet run --project ./src/VsAgentProxy.Client -- status
-dotnet run --project ./src/VsAgentProxy.Client -- capabilities
-dotnet run --project ./src/VsAgentProxy.Client -- documentation --level full
-dotnet run --project ./src/VsAgentProxy.Client -- stackTrace
-dotnet run --project ./src/VsAgentProxy.Client -- output
-dotnet run --project ./src/VsAgentProxy.Client -- output Build 50000
-dotnet run --project ./src/VsAgentProxy.Client -- output Build --offset 0 --count 10000
-dotnet run --project ./src/VsAgentProxy.Client -- activeDocument
-dotnet run --project ./src/VsAgentProxy.Client -- start
-dotnet run --project ./src/VsAgentProxy.Client -- startWithoutDebugging
-dotnet run --project ./src/VsAgentProxy.Client -- restart
-dotnet run --project ./src/VsAgentProxy.Client -- stepOver
-dotnet run --project ./src/VsAgentProxy.Client -- --pid 12345 status
-dotnet run --project ./src/VsAgentProxy.Client -- locals --frameIndex 0 --maxDepth 2
-dotnet run --project ./src/VsAgentProxy.Client -- arguments --frameIndex 0
-dotnet run --project ./src/VsAgentProxy.Client -- evaluate --expression "customer.Address.City"
-dotnet run --project ./src/VsAgentProxy.Client -- breakpoints
-dotnet run --project ./src/VsAgentProxy.Client -- breakpointAdd --file C:/Project/Program.cs --line 42 --condition "retryCount > 2" --conditionType whenTrue
-dotnet run --project ./src/VsAgentProxy.Client -- breakpointSetEnabled --id 0123456789abcdef --enabled false
-dotnet run --project ./src/VsAgentProxy.Client -- breakpointSetCriteria --id 0123456789abcdef --condition "retryCount > 5" --hitCount 3 --hitCountType greaterOrEqual
-dotnet run --project ./src/VsAgentProxy.Client -- breakpointRemove --id 0123456789abcdef
+dotnet run --project ./src/Vespertan.VisualStudio.AgentProxy.Client -- instances
+dotnet run --project ./src/Vespertan.VisualStudio.AgentProxy.Client -- status
+dotnet run --project ./src/Vespertan.VisualStudio.AgentProxy.Client -- capabilities
+dotnet run --project ./src/Vespertan.VisualStudio.AgentProxy.Client -- documentation --level full
+dotnet run --project ./src/Vespertan.VisualStudio.AgentProxy.Client -- stackTrace
+dotnet run --project ./src/Vespertan.VisualStudio.AgentProxy.Client -- output
+dotnet run --project ./src/Vespertan.VisualStudio.AgentProxy.Client -- output Build 50000
+dotnet run --project ./src/Vespertan.VisualStudio.AgentProxy.Client -- output Build --offset 0 --count 10000
+dotnet run --project ./src/Vespertan.VisualStudio.AgentProxy.Client -- activeDocument
+dotnet run --project ./src/Vespertan.VisualStudio.AgentProxy.Client -- start
+dotnet run --project ./src/Vespertan.VisualStudio.AgentProxy.Client -- startWithoutDebugging
+dotnet run --project ./src/Vespertan.VisualStudio.AgentProxy.Client -- restart
+dotnet run --project ./src/Vespertan.VisualStudio.AgentProxy.Client -- stepOver
+dotnet run --project ./src/Vespertan.VisualStudio.AgentProxy.Client -- --pid 12345 status
+dotnet run --project ./src/Vespertan.VisualStudio.AgentProxy.Client -- locals --frameIndex 0 --maxDepth 2
+dotnet run --project ./src/Vespertan.VisualStudio.AgentProxy.Client -- arguments --frameIndex 0
+dotnet run --project ./src/Vespertan.VisualStudio.AgentProxy.Client -- evaluate --expression "customer.Address.City"
+dotnet run --project ./src/Vespertan.VisualStudio.AgentProxy.Client -- breakpoints
+dotnet run --project ./src/Vespertan.VisualStudio.AgentProxy.Client -- breakpointAdd --file C:/Project/Program.cs --line 42 --condition "retryCount > 2" --conditionType whenTrue
+dotnet run --project ./src/Vespertan.VisualStudio.AgentProxy.Client -- breakpointSetEnabled --id 0123456789abcdef --enabled false
+dotnet run --project ./src/Vespertan.VisualStudio.AgentProxy.Client -- breakpointSetCriteria --id 0123456789abcdef --condition "retryCount > 5" --hitCount 3 --hitCountType greaterOrEqual
+dotnet run --project ./src/Vespertan.VisualStudio.AgentProxy.Client -- breakpointRemove --id 0123456789abcdef
 ```
 
 Responses are JSON, so the client can also be called from agent tooling. When
@@ -169,7 +169,7 @@ Line and column numbers are one-based. Details: [agent protocol](docs/AGENT_PROT
 Contract and snapshot handling tests:
 
 ```powershell
-dotnet test ./src/VsAgentProxy.Tests/VsAgentProxy.Tests.csproj
+dotnet test ./src/Vespertan.VisualStudio.AgentProxy.Tests/Vespertan.VisualStudio.AgentProxy.Tests.csproj
 ```
 
 `currentHits` may be `null`; DTE counters can be unreliable, so a separate

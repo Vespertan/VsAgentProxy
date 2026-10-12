@@ -22,7 +22,7 @@ Jeśli narzędzie globalne nie jest zainstalowane, wykonuj polecenia z katalogu
 głównego repozytorium przez klienta projektowego:
 
 ```powershell
-$client = '.\src\VsAgentProxy.Client'
+$client = '.\src\Vespertan.VisualStudio.AgentProxy.Client'
 dotnet run --project $client --no-build -- instances
 dotnet run --project $client --no-build -- status
 dotnet run --project $client --no-build -- capabilities
@@ -95,4 +95,4 @@ Breakpointy: `breakpointAdd`, `breakpointRemove`, `breakpointSetEnabled`,
 ./build.ps1 -Test
 ```
 
-VSIX: `src\VsAgentProxy\bin\Release\net472\VsAgentProxy.vsix`.
+VSIX: `src\Vespertan.VisualStudio.AgentProxy\bin\Release\net472\Vespertan.VisualStudio.AgentProxy.vsix`.

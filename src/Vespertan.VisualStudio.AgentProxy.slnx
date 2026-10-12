@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="../.gitignore" />
+    <File Path="../AGENTS.md" />
+    <File Path="../docs/AGENT_PROTOCOL.md" />
+    <File Path="../global.json" />
+    <File Path="../LICENSE" />
+    <File Path="../NuGet.Tool.config" />
+    <File Path="../README.md" />
+    <File Path=".editorconfig" />
+  </Folder>
+  <Project Path="Vespertan.VisualStudio.AgentProxy/Vespertan.VisualStudio.AgentProxy.csproj">
+    <Deploy Solution="Debug|*" />
+  </Project>
+  <Project Path="Vespertan.VisualStudio.AgentProxy.Client/Vespertan.VisualStudio.AgentProxy.Client.csproj" />
+  <Project Path="Vespertan.VisualStudio.AgentProxy.Tests/Vespertan.VisualStudio.AgentProxy.Tests.csproj" />
+  <Project Path="Vespertan.VisualStudio.AgentProxy.Contracts/Vespertan.VisualStudio.AgentProxy.Contracts.csproj" />
+</Solution>

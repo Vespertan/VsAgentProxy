@@ -9,4 +9,4 @@ using System.Runtime.CompilerServices;
 [assembly: AssemblyVersion("0.8.0.0")]
 [assembly: AssemblyFileVersion("0.8.0.0")]
 [assembly: ComVisible(false)]
-[assembly: InternalsVisibleTo("VsAgentProxy.Tests")]
+[assembly: InternalsVisibleTo("Vespertan.VisualStudio.AgentProxy.Tests")]

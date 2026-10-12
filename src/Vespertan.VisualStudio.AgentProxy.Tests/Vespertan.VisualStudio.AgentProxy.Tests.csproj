@@ -9,7 +9,7 @@
     <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../VsAgentProxy/VsAgentProxy.csproj" />
+    <ProjectReference Include="../Vespertan.VisualStudio.AgentProxy/Vespertan.VisualStudio.AgentProxy.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
     <PackageReference Include="Roslynator.Analyzers" Version="5.0.1">
       <PrivateAssets>all</PrivateAssets>

@@ -7,7 +7,7 @@ namespace VsAgentProxy.Contracts;
 
 public static class AgentServices
 {
-    public const string Name = "Vespertan.VsAgent";
+    public const string Name = "Vespertan.VisualStudio.AgentProxy";
     public const string Version = "1.0";
 
     public static readonly ServiceRpcDescriptor Agent = new ServiceJsonRpcDescriptor(
