@@ -44,7 +44,9 @@ public sealed class VsAgentProxyPackage : AsyncPackage
 
         var service = await GetServiceAsync(typeof(EnvDTE.DTE));
         if (service is null)
+        {
             return;
+        }
 
         var solutionService = await GetServiceAsync(typeof(SVsSolution));
         var outputService = await GetServiceAsync(typeof(SVsOutputWindow));
@@ -103,6 +105,7 @@ public sealed class VsAgentProxyPackage : AsyncPackage
                 externalRegistration.Dispose();
                 externalRegistration = null;
             }
+
             serviceRegistration?.Dispose();
             server?.Dispose();
         }

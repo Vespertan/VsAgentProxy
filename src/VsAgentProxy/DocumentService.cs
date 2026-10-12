@@ -16,18 +16,33 @@ internal sealed class DocumentService
 {
     private readonly IVsRunningDocumentTable? table;
     private readonly IVsEditorAdaptersFactoryService? adapters;
+
     public DocumentService(IVsRunningDocumentTable? table, IVsEditorAdaptersFactoryService? adapters = null)
-    { this.table = table; this.adapters = adapters; }
+    {
+        this.table = table;
+        this.adapters = adapters;
+    }
 
     public JObject LanguageStatus(string path)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
         path = ProtocolSupport.AbsolutePath(path);
-        var result = new JObject { ["path"] = path, ["languageServiceAvailability"] = "unavailable",
-            ["activeServerVersion"] = null, ["serverVersionAvailability"] = "unavailable", ["documentVersion"] = null,
-            ["diagnosticsFreshness"] = "unknown", ["note"] = "Editor content type or an empty diagnostic list does not confirm Angular Language Service is running." };
+        var result = new JObject
+        {
+            ["path"] = path,
+            ["languageServiceAvailability"] = "unavailable",
+            ["activeServerVersion"] = null,
+            ["serverVersionAvailability"] = "unavailable",
+            ["documentVersion"] = null,
+            ["diagnosticsFreshness"] = "unknown",
+            ["note"] = "Editor content type or an empty diagnostic list does not confirm Angular Language Service is running."
+        };
         if (!(table is IVsRunningDocumentTable4 current) || !current.IsMonikerValid(path))
-        { result["unavailableReason"] = "Document is not open in the Running Document Table."; return result; }
+        {
+            result["unavailableReason"] = "Document is not open in the Running Document Table.";
+            return result;
+        }
+
         var cookie = current.GetDocumentCookie(path);
         var data = current.GetDocumentData(cookie);
         current.UpdateDirtyState(cookie);
@@ -41,18 +56,29 @@ internal sealed class DocumentService
                 result["languageServiceId"] = language.ToString("D");
                 result["languageServiceAvailability"] = language == Guid.Empty ? "unavailable" : "editorRegistered";
             }
-            catch (Exception exception) { errors.Add(ProtocolSupport.ReadError("languageServiceId", exception)); }
+            catch (Exception exception)
+            {
+                errors.Add(ProtocolSupport.ReadError("languageServiceId", exception));
+            }
         }
+
         if (data is IVsTextBuffer buffer && adapters != null)
         {
             try
             {
                 var managed = adapters.GetDocumentBuffer(buffer);
                 if (managed != null)
-                { result["contentType"] = managed.ContentType.TypeName; result["documentVersion"] = managed.CurrentSnapshot.Version.VersionNumber; }
+                {
+                    result["contentType"] = managed.ContentType.TypeName;
+                    result["documentVersion"] = managed.CurrentSnapshot.Version.VersionNumber;
+                }
             }
-            catch (Exception exception) { errors.Add(ProtocolSupport.ReadError("editorSnapshot", exception)); }
+            catch (Exception exception)
+            {
+                errors.Add(ProtocolSupport.ReadError("editorSnapshot", exception));
+            }
         }
+
         result["readErrors"] = errors;
         result["capturedUtc"] = DateTime.UtcNow;
         return result;
@@ -61,14 +87,22 @@ internal sealed class DocumentService
     public JObject Read()
     {
         ThreadHelper.ThrowIfNotOnUIThread();
-        if (table == null) throw new ProxyException("serviceUnavailable", "Running Document Table is unavailable.");
+        if (table == null)
+        {
+            throw new ProxyException("serviceUnavailable", "Running Document Table is unavailable.");
+        }
+
         ErrorHandler.ThrowOnFailure(table.GetRunningDocumentsEnum(out var enumerator));
         var items = new JArray();
         var cookies = new uint[1];
         while (true)
         {
             ErrorHandler.ThrowOnFailure(enumerator.Next(1, cookies, out var fetched));
-            if (fetched == 0) break;
+            if (fetched == 0)
+            {
+                break;
+            }
+
             var errors = new JArray();
             IntPtr data = IntPtr.Zero;
             var item = new JObject { ["cookie"] = cookies[0], ["dirty"] = null };
@@ -77,7 +111,10 @@ internal sealed class DocumentService
                 ErrorHandler.ThrowOnFailure(table.GetDocumentInfo(cookies[0], out _, out _, out _, out var path, out var hierarchy, out _, out data));
                 item["path"] = path;
                 if (hierarchy != null && hierarchy.GetProperty(VSConstants.VSITEMID_ROOT, (int)__VSHPROPID.VSHPROPID_Name, out var name) >= 0)
+                {
                     item["project"] = name as string;
+                }
+
                 if (table is IVsRunningDocumentTable4 currentTable)
                 {
                     currentTable.UpdateDirtyState(cookies[0]);
@@ -88,13 +125,27 @@ internal sealed class DocumentService
                     ErrorHandler.ThrowOnFailure(document.IsDocDataDirty(out var dirty));
                     item["dirty"] = dirty != 0;
                 }
-                else item["unavailableReason"] = "Document data does not expose IVsPersistDocData.";
+                else
+                {
+                    item["unavailableReason"] = "Document data does not expose IVsPersistDocData.";
+                }
             }
-            catch (Exception exception) { errors.Add(ProtocolSupport.ReadError("document", exception)); }
-            finally { if (data != IntPtr.Zero) Marshal.Release(data); }
+            catch (Exception exception)
+            {
+                errors.Add(ProtocolSupport.ReadError("document", exception));
+            }
+            finally
+            {
+                if (data != IntPtr.Zero)
+                {
+                    Marshal.Release(data);
+                }
+            }
+
             item["readErrors"] = errors;
             items.Add(item);
         }
+
         return new JObject { ["documents"] = items, ["source"] = "RunningDocumentTable", ["capturedUtc"] = DateTime.UtcNow };
     }
 
@@ -103,7 +154,10 @@ internal sealed class DocumentService
         ThreadHelper.ThrowIfNotOnUIThread();
         var blockers = new JArray(((JArray)Read()["documents"]!).Where(x => (bool?)x["dirty"] != false));
         // All running documents: linked files can belong to more than the primary hierarchy.
-        if (blockers.Count != 0) throw new ProxyException("unsavedDocuments", "Reload requires all running documents to have a confirmed clean state. Save explicitly first.", new JObject { ["documents"] = blockers });
+        if (blockers.Count != 0)
+        {
+            throw new ProxyException("unsavedDocuments", "Reload requires all running documents to have a confirmed clean state. Save explicitly first.", new JObject { ["documents"] = blockers });
+        }
     }
 
     public JObject Save(JObject parameters)
@@ -121,9 +175,17 @@ internal sealed class DocumentService
             {
                 var cookie = (uint)item["cookie"]!;
                 // A nil cookie would turn a targeted RDT save into a broader operation.
-                if (cookie == 0) throw new InvalidOperationException("Document has no valid running document cookie.");
+                if (cookie == 0)
+                {
+                    throw new InvalidOperationException("Document has no valid running document cookie.");
+                }
+
                 ErrorHandler.ThrowOnFailure(table!.GetDocumentInfo(cookie, out _, out _, out _, out var path, out _, out _, out data));
-                if (!string.Equals(path, (string?)item["path"], StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Document changed before save.");
+                if (!string.Equals(path, (string?)item["path"], StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("Document changed before save.");
+                }
+
                 if (data != IntPtr.Zero && Marshal.GetObjectForIUnknown(data) is IVsPersistDocData document)
                 {
                     ErrorHandler.ThrowOnFailure(document.SaveDocData(VSSAVEFLAGS.VSSAVE_SilentSave, out var savedPath, out var cancelled));
@@ -137,28 +199,56 @@ internal sealed class DocumentService
                     results.Add(SaveThroughRunningDocumentTable(table, cookie, path));
                 }
             }
-            catch (Exception exception) { results.Add(new JObject { ["path"] = item["path"], ["saved"] = false, ["error"] = ProtocolSupport.ReadError("save", exception) }); }
-            finally { if (data != IntPtr.Zero) Marshal.Release(data); }
+            catch (Exception exception)
+            {
+                results.Add(new JObject { ["path"] = item["path"], ["saved"] = false, ["error"] = ProtocolSupport.ReadError("save", exception) });
+            }
+            finally
+            {
+                if (data != IntPtr.Zero)
+                {
+                    Marshal.Release(data);
+                }
+            }
         }
+
         return new JObject { ["documents"] = results, ["allSaved"] = results.All(x => (bool?)x["saved"] == true) };
     }
 
     internal static JObject SaveThroughRunningDocumentTable(IVsRunningDocumentTable table, uint cookie, string path)
     {
-        if (cookie == 0) throw new InvalidOperationException("Document has no valid running document cookie.");
+        if (cookie == 0)
+        {
+            throw new InvalidOperationException("Document has no valid running document cookie.");
+        }
+
         if (!(table is IVsRunningDocumentTable4 current))
+        {
             throw new InvalidOperationException("Document save requires Running Document Table state verification.");
+        }
+
         if (!current.IsMonikerValid(path) || current.GetDocumentCookie(path) != cookie)
+        {
             throw new InvalidOperationException("Document changed before save.");
+        }
+
         var options = (uint)__VSRDTSAVEOPTIONS.RDTSAVEOPT_SaveNoChildren
             | (uint)__VSRDTSAVEOPTIONS2.RDTSAVEOPT_SkipNewUnsaved
             | (uint)__VSRDTSAVEOPTIONS3.RDTSAVEOPT_SilentSave;
         var hr = table.SaveDocuments(options, null, VSConstants.VSITEMID_NIL, cookie);
         ErrorHandler.ThrowOnFailure(hr);
         if (!current.IsMonikerValid(path) || current.GetDocumentCookie(path) != cookie)
+        {
             throw new InvalidOperationException("Document changed during save; saved state could not be verified.");
+        }
+
         current.UpdateDirtyState(cookie);
-        return new JObject { ["path"] = path, ["savedPath"] = null,
-            ["saved"] = hr == VSConstants.S_OK && !current.IsDocumentDirty(cookie), ["cancelled"] = hr == VSConstants.S_FALSE };
+        return new JObject
+        {
+            ["path"] = path,
+            ["savedPath"] = null,
+            ["saved"] = hr == VSConstants.S_OK && !current.IsDocumentDirty(cookie),
+            ["cancelled"] = hr == VSConstants.S_FALSE
+        };
     }
 }

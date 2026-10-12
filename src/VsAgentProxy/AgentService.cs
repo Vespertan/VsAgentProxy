@@ -90,14 +90,27 @@ internal sealed class AgentService : IDisposable
             var request = JObject.Parse(requestJson);
             var parameters = request["params"] as JObject ?? new JObject();
             var key = ProtocolSupport.String(parameters, "idempotencyKey");
-            if (key?.Length > 200) throw new ArgumentException("idempotencyKey must be at most 200 characters.");
+            if (key?.Length > 200)
+            {
+                throw new ArgumentException("idempotencyKey must be at most 200 characters.");
+            }
+
             var response = key == null ? await DispatchAsync(request, linked.Token).ConfigureAwait(false)
                 : mutations.Find(key, request) ?? await DispatchAndRememberAsync(key, request, linked.Token).ConfigureAwait(false);
             return response.ToString(Formatting.None);
         }
-        catch (OperationCanceledException) { throw; }
-        catch (Exception exception) { return Error(null, exception).ToString(Formatting.None); }
-        finally { requestGate.Release(); }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            return Error(null, exception).ToString(Formatting.None);
+        }
+        finally
+        {
+            requestGate.Release();
+        }
     }
 
     private async Task<JObject> DispatchAndRememberAsync(string key, JObject request, CancellationToken token)
@@ -119,15 +132,30 @@ internal sealed class AgentService : IDisposable
             // enumerate their snapshots on Visual Studio's UI thread.
             if (method == "diagnostics" || method == "documentDiagnostics")
             {
-                if (method == "documentDiagnostics") parameters["file"] = ProtocolSupport.String(parameters, "path") ?? throw new ArgumentException("path is required.");
+                if (method == "documentDiagnostics")
+                {
+                    parameters["file"] = ProtocolSupport.String(parameters, "path") ?? throw new ArgumentException("path is required.");
+                }
+
                 await joinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
                 var projectErrors = new JArray();
                 var faults = new JArray();
                 var documentState = method == "documentDiagnostics" ? documents.LanguageStatus((string)parameters["file"]!) : null;
-                try { faults = ProjectService.FaultDiagnostics(projectService.Read()); }
-                catch (Exception exception) { projectErrors.Add(ProtocolSupport.ReadError("projectFaults", exception)); }
+                try
+                {
+                    faults = ProjectService.FaultDiagnostics(projectService.Read());
+                }
+                catch (Exception exception)
+                {
+                    projectErrors.Add(ProtocolSupport.ReadError("projectFaults", exception));
+                }
+
                 var diagnostics = await Task.Run(() => diagnosticsService.Read(parameters, faults, projectErrors), cancellationToken).ConfigureAwait(false);
-                if (documentState != null) diagnostics["document"] = documentState;
+                if (documentState != null)
+                {
+                    diagnostics["document"] = documentState;
+                }
+
                 return Success(id, diagnostics);
             }
 
@@ -140,9 +168,19 @@ internal sealed class AgentService : IDisposable
                 Capture(snapshot, "launchCheck", launchCheckService.Read);
                 Capture(snapshot, "documents", documents.Read);
                 foreach (var pane in new[] { "Build", "Debug" })
+                {
                     Capture(snapshot, "output" + pane, () => outputService.Read(new JObject { ["pane"] = pane, ["count"] = 4000 }));
-                try { snapshot["diagnostics"] = await Task.Run(() => diagnosticsService.Read(new JObject { ["count"] = 200 }), cancellationToken).ConfigureAwait(false); }
-                catch (Exception exception) when (!(exception is OperationCanceledException)) { snapshot["diagnostics"] = new JObject { ["error"] = ProtocolSupport.ReadError("diagnostics", exception) }; }
+                }
+
+                try
+                {
+                    snapshot["diagnostics"] = await Task.Run(() => diagnosticsService.Read(new JObject { ["count"] = 200 }), cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception exception) when (!(exception is OperationCanceledException))
+                {
+                    snapshot["diagnostics"] = new JObject { ["error"] = ProtocolSupport.ReadError("diagnostics", exception) };
+                }
+
                 snapshot["completedUtc"] = DateTime.UtcNow;
                 return Success(id, snapshot);
             }
@@ -150,7 +188,10 @@ internal sealed class AgentService : IDisposable
             await joinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
             operations.Expire();
             if (operations.Active != null && method is "projectReload" or "saveDocuments" or "setStartupProjects" or "selectLaunchProfile" or "selectSolutionLaunchProfile")
+            {
                 throw new ProxyException("operationInProgress", "Wait for the active operation before changing project state.", new JObject { ["operation"] = operations.Active.DeepClone() });
+            }
+
             object result;
             switch (method)
             {
@@ -169,32 +210,87 @@ internal sealed class AgentService : IDisposable
                 case "projects":
                     result = projectService.Read();
                     break;
-                case "documents": result = documents.Read(); break;
-                case "saveDocuments": result = documents.Save(parameters); break;
-                case "projectReload": result = projectService.Reload(parameters, documents); operations.Emit("projectReload", JObject.FromObject(result)); break;
-                case "startupProjects": result = projectService.Startup(); break;
-                case "setStartupProjects": result = projectService.SetStartup(parameters); operations.Emit("startupProjectsChanged", JObject.FromObject(result)); break;
-                case "projectProperties": result = projectService.Properties(parameters); break;
-                case "configurations": result = projectService.Configurations(); break;
-                case "build": result = ideEvents.Execute(method, "Build.BuildSolution"); break;
-                case "rebuild": result = ideEvents.Execute(method, "Build.RebuildSolution"); break;
-                case "clean": result = ideEvents.Execute(method, "Build.CleanSolution"); break;
-                case "cancelBuild": result = ideEvents.CancelBuild(); break;
-                case "operationStatus": result = operations.Status(ProtocolSupport.String(parameters, "id") ?? throw new ArgumentException("id is required.")); break;
-                case "events": result = operations.Events(parameters); break;
-                case "stopReason": result = ideEvents.StopReason; break;
-                case "launchProfiles": result = launches.Read(parameters); break;
-                case "selectLaunchProfile": result = launches.Select(parameters); operations.Emit("launchProfileChanged", JObject.FromObject(result)); break;
-                case "solutionLaunchProfiles": result = await solutionLaunches.ReadAsync(cancellationToken); break;
-                case "selectSolutionLaunchProfile": result = await solutionLaunches.SelectAsync(parameters, cancellationToken); operations.Emit("solutionLaunchProfileChanged", JObject.FromObject(result)); break;
-                case "languageServiceStatus": result = documents.LanguageStatus(ProtocolSupport.String(parameters, "path") ?? throw new ArgumentException("path is required.")); break;
-                case "terminals": result = TerminalSupport(); break;
-                case "terminalOutput": throw new ProxyException("unsupported", "Public VS terminal APIs do not expose existing terminals' output history.", TerminalSupport());
-                case "scopes": result = inspection.Scopes(parameters); break;
-                case "variables": result = inspection.Variables(parameters); break;
-                case "threads": result = inspection.Threads(); break;
-                case "processes": result = inspection.Processes(); break;
-                case "selectContext": result = inspection.SelectContext(parameters); break;
+                case "documents":
+                    result = documents.Read();
+                    break;
+                case "saveDocuments":
+                    result = documents.Save(parameters);
+                    break;
+                case "projectReload":
+                    result = projectService.Reload(parameters, documents);
+                    operations.Emit("projectReload", JObject.FromObject(result));
+                    break;
+                case "startupProjects":
+                    result = projectService.Startup();
+                    break;
+                case "setStartupProjects":
+                    result = projectService.SetStartup(parameters);
+                    operations.Emit("startupProjectsChanged", JObject.FromObject(result));
+                    break;
+                case "projectProperties":
+                    result = projectService.Properties(parameters);
+                    break;
+                case "configurations":
+                    result = projectService.Configurations();
+                    break;
+                case "build":
+                    result = ideEvents.Execute(method, "Build.BuildSolution");
+                    break;
+                case "rebuild":
+                    result = ideEvents.Execute(method, "Build.RebuildSolution");
+                    break;
+                case "clean":
+                    result = ideEvents.Execute(method, "Build.CleanSolution");
+                    break;
+                case "cancelBuild":
+                    result = ideEvents.CancelBuild();
+                    break;
+                case "operationStatus":
+                    result = operations.Status(ProtocolSupport.String(parameters, "id") ?? throw new ArgumentException("id is required."));
+                    break;
+                case "events":
+                    result = operations.Events(parameters);
+                    break;
+                case "stopReason":
+                    result = ideEvents.StopReason;
+                    break;
+                case "launchProfiles":
+                    result = launches.Read(parameters);
+                    break;
+                case "selectLaunchProfile":
+                    result = launches.Select(parameters);
+                    operations.Emit("launchProfileChanged", JObject.FromObject(result));
+                    break;
+                case "solutionLaunchProfiles":
+                    result = await solutionLaunches.ReadAsync(cancellationToken);
+                    break;
+                case "selectSolutionLaunchProfile":
+                    result = await solutionLaunches.SelectAsync(parameters, cancellationToken);
+                    operations.Emit("solutionLaunchProfileChanged", JObject.FromObject(result));
+                    break;
+                case "languageServiceStatus":
+                    result = documents.LanguageStatus(ProtocolSupport.String(parameters, "path") ?? throw new ArgumentException("path is required."));
+                    break;
+                case "terminals":
+                    result = TerminalSupport();
+                    break;
+                case "terminalOutput":
+                    throw new ProxyException("unsupported", "Public VS terminal APIs do not expose existing terminals' output history.", TerminalSupport());
+                case "scopes":
+                    result = inspection.Scopes(parameters);
+                    break;
+                case "variables":
+                    result = inspection.Variables(parameters);
+                    break;
+                case "threads":
+                    result = inspection.Threads();
+                    break;
+                case "processes":
+                    result = inspection.Processes();
+                    break;
+                case "selectContext":
+                    result = inspection.SelectContext(parameters);
+                    break;
                 case "launchCheck":
                     result = launchCheckService.Read();
                     break;
@@ -283,17 +379,25 @@ internal sealed class AgentService : IDisposable
 
     private static JObject TerminalSupport() => new()
     {
-        ["availability"] = "unsupported", ["terminals"] = null,
+        ["availability"] = "unsupported",
+        ["terminals"] = null,
         ["unavailableReason"] = "ITerminalService.GetTerminalGuidsAsync lists only terminals created by that service client. It does not enumerate existing JSPS terminals; no public history/PID/exit-code reader is exposed.",
-        ["scope"] = "existingVisualStudioTerminals", ["outputAvailability"] = "unsupported",
+        ["scope"] = "existingVisualStudioTerminals",
+        ["outputAvailability"] = "unsupported",
         ["suggestedRead"] = "processes and output (Output window only)"
     };
 
     private static void Capture(JObject snapshot, string name, Func<object> read)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
-        try { snapshot[name] = new JObject { ["capturedUtc"] = DateTime.UtcNow, ["value"] = JToken.FromObject(read()) }; }
-        catch (Exception exception) { snapshot[name] = new JObject { ["error"] = ProtocolSupport.ReadError(name, exception) }; }
+        try
+        {
+            snapshot[name] = new JObject { ["capturedUtc"] = DateTime.UtcNow, ["value"] = JToken.FromObject(read()) };
+        }
+        catch (Exception exception)
+        {
+            snapshot[name] = new JObject { ["error"] = ProtocolSupport.ReadError(name, exception) };
+        }
     }
 
     private object GetStatus()
@@ -320,7 +424,9 @@ internal sealed class AgentService : IDisposable
         ThreadHelper.ThrowIfNotOnUIThread();
         var thread = dte.Debugger.CurrentThread;
         if (thread is null)
+        {
             return Array.Empty<object>();
+        }
 
         var result = new List<object>();
         var currentFrame = dte.Debugger.CurrentStackFrame as DteStackFrame2;
@@ -397,9 +503,9 @@ internal sealed class AgentService : IDisposable
         ThreadHelper.ThrowIfNotOnUIThread();
         var thread = dte.Debugger.CurrentThread
             ?? throw new InvalidOperationException("There is no current debugger thread.");
-        if (frameIndex >= thread.StackFrames.Count)
-            throw new ArgumentOutOfRangeException("frameIndex", "Stack frame index is out of range.");
-        return thread.StackFrames.Item(frameIndex + 1);
+        return frameIndex >= thread.StackFrames.Count
+            ? throw new ArgumentOutOfRangeException("frameIndex", "Stack frame index is out of range.")
+            : thread.StackFrames.Item(frameIndex + 1);
     }
 
     private static JArray SerializeExpressions(
@@ -417,8 +523,10 @@ internal sealed class AgentService : IDisposable
                 truncated = true;
                 break;
             }
+
             result.Add(SerializeExpression(expression, depth, ref remaining, ref truncated));
         }
+
         return result;
     }
 
@@ -444,13 +552,16 @@ internal sealed class AgentService : IDisposable
             var members = expression.DataMembers;
             result["hasChildren"] = members.Count > 0;
             if (members.Count > 0 && depth > 0 && remaining > 0)
+            {
                 result["children"] = SerializeExpressions(members, depth - 1, ref remaining, ref truncated);
+            }
         }
         catch (Exception exception)
         {
             result["hasChildren"] = null;
             result["childrenError"] = exception.Message;
         }
+
         return result;
     }
 #pragma warning restore VSTHRD010
@@ -465,6 +576,7 @@ internal sealed class AgentService : IDisposable
             result.Add(SerializeBreakpoint(breakpoint, index));
             index++;
         }
+
         return result;
     }
 
@@ -477,7 +589,9 @@ internal sealed class AgentService : IDisposable
         var address = parameters.Value<string>("address") ?? string.Empty;
         var locationCount = new[] { function, file, data, address }.Count(value => !string.IsNullOrWhiteSpace(value));
         if (locationCount != 1)
+        {
             throw new ArgumentException("Specify exactly one breakpoint location: file, function, data or address.");
+        }
 
         var added = dte.Debugger.Breakpoints.Add(
             function,
@@ -523,9 +637,14 @@ internal sealed class AgentService : IDisposable
         var function = breakpoint.FunctionName ?? string.Empty;
         var file = breakpoint.File ?? string.Empty;
         if (string.IsNullOrWhiteSpace(function) && string.IsNullOrWhiteSpace(file))
+        {
             throw new NotSupportedException("Changing criteria is currently supported for file and function breakpoints only.");
+        }
+
         if (!string.IsNullOrWhiteSpace(file))
+        {
             function = string.Empty;
+        }
 
         var tag = breakpoint.Tag;
         var enabled = breakpoint.Enabled;
@@ -555,6 +674,7 @@ internal sealed class AgentService : IDisposable
             replacement.Enabled = enabled;
             result.Add(SerializeBreakpoint(replacement, FindBreakpointIndexByTag(replacement.Tag)));
         }
+
         return result;
     }
 
@@ -568,6 +688,7 @@ internal sealed class AgentService : IDisposable
             breakpoint.Enabled = enabled;
             result.Add(SerializeBreakpoint(breakpoint, FindBreakpointIndexByTag(breakpoint.Tag)));
         }
+
         return result;
     }
 
@@ -578,9 +699,13 @@ internal sealed class AgentService : IDisposable
         foreach (DteBreakpoint breakpoint in dte.Debugger.Breakpoints)
         {
             if (breakpoint.Tag == tag)
+            {
                 return index;
+            }
+
             index++;
         }
+
         return -1;
     }
 
@@ -590,7 +715,9 @@ internal sealed class AgentService : IDisposable
         var requestedId = parameters.Value<string>("id");
         var requestedIndex = parameters.Value<int?>("index");
         if (string.IsNullOrWhiteSpace(requestedId) && !requestedIndex.HasValue)
+        {
             throw new ArgumentException("Breakpoint selector 'id' or 'index' is required.");
+        }
 
         var index = 0;
         foreach (DteBreakpoint breakpoint in dte.Debugger.Breakpoints)
@@ -598,9 +725,13 @@ internal sealed class AgentService : IDisposable
             var id = GetBreakpointId(breakpoint.Tag);
             if ((!string.IsNullOrWhiteSpace(requestedId) && requestedId == id)
                 || (requestedIndex.HasValue && requestedIndex.Value == index))
+            {
                 return (breakpoint, index);
+            }
+
             index++;
         }
+
         throw new KeyNotFoundException("Breakpoint was not found.");
     }
 
@@ -660,15 +791,19 @@ internal sealed class AgentService : IDisposable
     private static string RequireString(JObject parameters, string name)
     {
         var value = parameters.Value<string>(name);
-        if (string.IsNullOrWhiteSpace(value))
-            throw new ArgumentException("Parameter '" + name + "' is required.");
-        return value!;
+        return string.IsNullOrWhiteSpace(value) ? throw new ArgumentException("Parameter '" + name + "' is required.") : value!;
     }
 
     private static T SafeRead<T>(Func<T> read, T fallback = default!)
     {
-        try { return read(); }
-        catch { return fallback; }
+        try
+        {
+            return read();
+        }
+        catch
+        {
+            return fallback;
+        }
     }
 
     private object GetActiveDocument()
@@ -676,14 +811,18 @@ internal sealed class AgentService : IDisposable
         ThreadHelper.ThrowIfNotOnUIThread();
         var document = dte.ActiveDocument;
         if (document is null)
+        {
             return new { available = false };
+        }
 
         var selection = document.Selection as TextSelection;
         var selectedText = selection?.Text ?? string.Empty;
         const int selectionLimit = 100000;
         var selectionTruncated = selectedText.Length > selectionLimit;
         if (selectionTruncated)
+        {
             selectedText = selectedText.Substring(0, selectionLimit);
+        }
 
         return new
         {
@@ -701,8 +840,11 @@ internal sealed class AgentService : IDisposable
     {
         ThreadHelper.ThrowIfNotOnUIThread();
         if (!dte.Commands.Item(command).IsAvailable)
+        {
             throw new ProxyException("commandUnavailable", "Visual Studio command is not currently available: " + command,
                 new JObject { ["command"] = command, ["suggestedRead"] = command == "Debug.Start" || command == "Debug.StartWithoutDebugging" ? "launchCheck" : "status" });
+        }
+
         ideEvents.Invalidate();
         dte.ExecuteCommand(command);
     }
@@ -712,7 +854,9 @@ internal sealed class AgentService : IDisposable
 
     private static JObject Error(JToken? id, Exception exception) => new()
     {
-        ["id"] = id?.DeepClone(), ["ok"] = false, ["error"] = exception.Message,
+        ["id"] = id?.DeepClone(),
+        ["ok"] = false,
+        ["error"] = exception.Message,
         ["errorCode"] = exception is ProxyException proxy ? proxy.Code : exception is ArgumentException ? "invalidParameters" : "ideOperationFailed",
         ["hresult"] = "0x" + exception.HResult.ToString("X8"),
         ["details"] = exception is ProxyException detailed ? detailed.Details : new JObject()

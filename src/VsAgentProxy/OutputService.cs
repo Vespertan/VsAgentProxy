@@ -27,27 +27,50 @@ internal sealed class OutputService
         ThreadHelper.ThrowIfNotOnUIThread();
         var name = ProtocolSupport.String(parameters, "pane");
         var id = ProtocolSupport.String(parameters, "paneId");
-        if (name != null && id != null) throw new ArgumentException("Use either pane or paneId, not both.");
+        if (name != null && id != null)
+        {
+            throw new ArgumentException("Use either pane or paneId, not both.");
+        }
+
         Guid requestedId = default;
-        if (id != null && !Guid.TryParse(id, out requestedId)) throw new ArgumentException("paneId must be a GUID.");
+        if (id != null && !Guid.TryParse(id, out requestedId))
+        {
+            throw new ArgumentException("paneId must be a GUID.");
+        }
+
         var count = ProtocolSupport.Integer(parameters, parameters["count"] != null ? "count" : "maxChars", 20000, 1, 200000);
         int? offset = parameters["offset"] == null ? null : ProtocolSupport.Integer(parameters, "offset", 0, 0, int.MaxValue);
         var panes = new List<OutputWindowPane>();
-        foreach (OutputWindowPane pane in dte.ToolWindows.OutputWindow.OutputWindowPanes) panes.Add(pane);
+        foreach (OutputWindowPane pane in dte.ToolWindows.OutputWindow.OutputWindowPanes)
+        {
+            panes.Add(pane);
+        }
+
         if (name == null && id == null)
+        {
             return new
             {
                 panes = panes.Select(p => { ThreadHelper.ThrowIfNotOnUIThread(); return p.Name; }).ToArray(),
                 paneDetails = panes.Select(p => { ThreadHelper.ThrowIfNotOnUIThread(); return new { name = p.Name, id = NormalizeId(p.Guid) }; }).ToArray()
             };
+        }
 
-        var selected = panes.FirstOrDefault(p => { ThreadHelper.ThrowIfNotOnUIThread(); return id != null
+        var selected = panes.FirstOrDefault(p =>
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            return id != null
             ? Guid.TryParse(p.Guid, out var guid) && guid == requestedId
-            : string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase); });
+            : string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase);
+        });
         if (selected == null)
+        {
             throw new ProxyException("outputPaneNotFound", "Output pane not found: " + (id ?? name));
+        }
 
-        try { return ReadPane(selected, offset, count); }
+        try
+        {
+            return ReadPane(selected, offset, count);
+        }
         catch (ProxyException exception) when (exception.Code == "outputReadFailed" && exception.InnerException?.HResult == unchecked((int)0x80004005))
         {
             // VS creates some pane buffers lazily on first activation. An empty
@@ -78,25 +101,63 @@ internal sealed class OutputService
         catch (Exception exception)
         {
             failure = new ProxyException("outputReadFailed", "Cannot read Output pane after initialization: " + selected.Name,
-                new JObject { ["paneId"] = NormalizeId(selected.Guid), ["initializationAttempted"] = true,
+                new JObject
+                {
+                    ["paneId"] = NormalizeId(selected.Guid),
+                    ["initializationAttempted"] = true,
                     ["readError"] = ProtocolSupport.ReadError("initializedPane", exception),
-                    ["innerDetails"] = (exception as ProxyException)?.Details }, exception);
+                    ["innerDetails"] = (exception as ProxyException)?.Details
+                }, exception);
             throw failure;
         }
         finally
         {
-            try { if (previousPane != null) previousPane.Activate(); }
-            catch (Exception exception) { restorationErrors.Add(ProtocolSupport.ReadError("previousPane", exception)); }
-            try { if (output.Parent.Visible != outputWasVisible) output.Parent.Visible = outputWasVisible; }
-            catch (Exception exception) { restorationErrors.Add(ProtocolSupport.ReadError("outputVisibility", exception)); }
-            try { if (previousWindow != null && dte.ActiveWindow != previousWindow) previousWindow.Activate(); }
-            catch (Exception exception) { restorationErrors.Add(ProtocolSupport.ReadError("activeWindow", exception)); }
+            try
+            {
+                if (previousPane != null)
+                {
+                    previousPane.Activate();
+                }
+            }
+            catch (Exception exception)
+            {
+                restorationErrors.Add(ProtocolSupport.ReadError("previousPane", exception));
+            }
+
+            try
+            {
+                if (output.Parent.Visible != outputWasVisible)
+                {
+                    output.Parent.Visible = outputWasVisible;
+                }
+            }
+            catch (Exception exception)
+            {
+                restorationErrors.Add(ProtocolSupport.ReadError("outputVisibility", exception));
+            }
+
+            try
+            {
+                if (previousWindow != null && dte.ActiveWindow != previousWindow)
+                {
+                    previousWindow.Activate();
+                }
+            }
+            catch (Exception exception)
+            {
+                restorationErrors.Add(ProtocolSupport.ReadError("activeWindow", exception));
+            }
+
             if (result != null)
             {
                 result["restorationErrors"] = restorationErrors;
                 result["paneSelectionRestored"] = previousPane != null && !restorationErrors.OfType<JObject>().Any(e => (string?)e["field"] == "previousPane");
             }
-            if (failure != null) failure.Details["restorationErrors"] = restorationErrors;
+
+            if (failure != null)
+            {
+                failure.Details["restorationErrors"] = restorationErrors;
+            }
         }
     }
 
@@ -112,9 +173,15 @@ internal sealed class OutputService
                 ErrorHandler.ThrowOnFailure(outputWindow.GetPane(ref paneGuid, out var nativePane));
                 var buffer = nativePane as IVsTextLines;
                 if (buffer == null && nativePane is IVsTextBufferProvider provider)
+                {
                     ErrorHandler.ThrowOnFailure(provider.GetTextBuffer(out buffer));
+                }
+
                 if (buffer == null && nativePane is IVsTextView view)
+                {
                     ErrorHandler.ThrowOnFailure(view.GetBuffer(out buffer));
+                }
+
                 if (buffer != null)
                 {
                     ErrorHandler.ThrowOnFailure(buffer.GetSize(out var length));
@@ -126,11 +193,16 @@ internal sealed class OutputService
                         ErrorHandler.ThrowOnFailure(buffer.GetLineIndexOfPosition(range.Offset + range.Count, out var endLine, out var endColumn));
                         ErrorHandler.ThrowOnFailure(buffer.GetLineText(startLine, startColumn, endLine, endColumn, out text));
                     }
+
                     return Result(selected, text, range.Offset, length, "textBuffer");
                 }
+
                 errors.Add(new JObject { ["field"] = "textBuffer", ["message"] = "The pane does not expose a text buffer." });
             }
-            catch (Exception exception) { errors.Add(ProtocolSupport.ReadError("textBuffer", exception)); }
+            catch (Exception exception)
+            {
+                errors.Add(ProtocolSupport.ReadError("textBuffer", exception));
+            }
         }
 
         try
@@ -159,8 +231,15 @@ internal sealed class OutputService
         ThreadHelper.ThrowIfNotOnUIThread();
         return new
         {
-            pane = pane.Name, paneId = NormalizeId(pane.Guid), text, offset, count = text.Length,
-            totalChars = total, hasMoreBefore = offset > 0, hasMoreAfter = offset + text.Length < total, source
+            pane = pane.Name,
+            paneId = NormalizeId(pane.Guid),
+            text,
+            offset,
+            count = text.Length,
+            totalChars = total,
+            hasMoreBefore = offset > 0,
+            hasMoreAfter = offset + text.Length < total,
+            source
         };
     }
 }

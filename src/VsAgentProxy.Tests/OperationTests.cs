@@ -46,7 +46,11 @@ public sealed class OperationTests
     public void EventCursorReportsLostHistoryAndSessionChanges()
     {
         var registry = new OperationRegistry();
-        for (var i = 0; i < 600; i++) registry.Emit("test");
+        for (var i = 0; i < 600; i++)
+        {
+            registry.Emit("test");
+        }
+
         var page = registry.Events(new JObject { ["afterSequence"] = 1, ["limit"] = 10 });
         Assert.True((bool)page["historyLost"]!);
         Assert.Equal(89, (int)page["firstAvailableSequence"]!);
@@ -90,7 +94,7 @@ public sealed class OperationTests
         var profile = LaunchService.ConfiguredProfile(JObject.Parse("{'type':'chrome','url':'http://localhost:4200','env':{'SECRET':'value'}}"), "Chrome", "launch.json");
         Assert.Equal(JTokenType.Null, profile["active"]!.Type);
         Assert.Null(profile["env"]);
-    Assert.Equal("diskConfiguration", (string?)profile["sourceKind"]);
+        Assert.Equal("diskConfiguration", (string?)profile["sourceKind"]);
     }
 
     [Fact]

@@ -19,12 +19,28 @@ internal sealed class OperationRegistry
     public JObject Begin(string method)
     {
         Expire();
-        if (Active != null) throw new ProxyException("operationInProgress", "An operation is still awaiting confirmation.", new JObject { ["operation"] = Active.DeepClone() });
-        var operation = new JObject { ["id"] = Guid.NewGuid().ToString("N"), ["sessionId"] = SessionId,
-            ["method"] = method, ["state"] = "queued", ["phase"] = "dispatching", ["startedUtc"] = now(), ["source"] = "proxy",
-            ["correlation"] = "exclusiveCommandWindow" };
+        if (Active != null)
+        {
+            throw new ProxyException("operationInProgress", "An operation is still awaiting confirmation.", new JObject { ["operation"] = Active.DeepClone() });
+        }
+
+        var operation = new JObject
+        {
+            ["id"] = Guid.NewGuid().ToString("N"),
+            ["sessionId"] = SessionId,
+            ["method"] = method,
+            ["state"] = "queued",
+            ["phase"] = "dispatching",
+            ["startedUtc"] = now(),
+            ["source"] = "proxy",
+            ["correlation"] = "exclusiveCommandWindow"
+        };
         operations.Add(operation);
-        if (operations.Count > 128) operations.RemoveAt(0);
+        if (operations.Count > 128)
+        {
+            operations.RemoveAt(0);
+        }
+
         Active = operation;
         Emit("operationQueued", new JObject { ["operationId"] = operation["id"] });
         return operation;
@@ -32,19 +48,35 @@ internal sealed class OperationRegistry
 
     public void Change(string state, string phase, string? evidence = null)
     {
-        if (Active == null) return;
-        Active["state"] = state; Active["phase"] = phase; Active["updatedUtc"] = now();
+        if (Active == null)
+        {
+            return;
+        }
+
+        Active["state"] = state;
+        Active["phase"] = phase;
+        Active["updatedUtc"] = now();
         Active["evidence"] = evidence;
         var finished = state == "succeeded" || state == "failed" || state == "cancelled" || state == "unknown";
-        if (finished) Active["completedUtc"] = now();
+        if (finished)
+        {
+            Active["completedUtc"] = now();
+        }
+
         Emit("operationChanged", (JObject)Active.DeepClone());
-        if (finished) Active = null;
+        if (finished)
+        {
+            Active = null;
+        }
     }
 
     public void Emit(string kind, JObject? data = null)
     {
         events.Enqueue(new JObject { ["sequence"] = ++sequence, ["sessionId"] = SessionId, ["utc"] = now(), ["kind"] = kind, ["data"] = data ?? new JObject() });
-        while (events.Count > 512) events.Dequeue();
+        while (events.Count > 512)
+        {
+            events.Dequeue();
+        }
     }
 
     public JObject Status(string id)
@@ -63,16 +95,25 @@ internal sealed class OperationRegistry
         var reset = session != null && session != SessionId;
         var first = events.Count == 0 ? sequence + 1 : (long)events.Peek()["sequence"]!;
         var selected = events.Where(x => reset || (long)x["sequence"]! > after).Take(limit).ToArray();
-        return new JObject { ["sessionId"] = SessionId, ["events"] = new JArray(selected.Select(x => x.DeepClone())),
-            ["historyLost"] = reset || after < first - 1 || after > sequence, ["sessionChanged"] = reset,
-            ["firstAvailableSequence"] = first, ["lastSequence"] = sequence,
-            ["nextSequence"] = selected.Length == 0 ? sequence : (long)selected.Last()["sequence"]! };
+        return new JObject
+        {
+            ["sessionId"] = SessionId,
+            ["events"] = new JArray(selected.Select(x => x.DeepClone())),
+            ["historyLost"] = reset || after < first - 1 || after > sequence,
+            ["sessionChanged"] = reset,
+            ["firstAvailableSequence"] = first,
+            ["lastSequence"] = sequence,
+            ["nextSequence"] = selected.Length == 0 ? sequence : (long)selected.Last()["sequence"]!
+        };
     }
 
     public void Expire()
     {
         if (Active != null && now() - (DateTime)Active["startedUtc"]! > TimeSpan.FromMinutes(2))
+        {
             Change("unknown", "confirmationTimedOut", "No terminal event within two minutes; IDE operation was not cancelled.");
+        }
+
         operations.RemoveAll(x => x != Active && now() - (DateTime)x["startedUtc"]! > TimeSpan.FromHours(1));
     }
 

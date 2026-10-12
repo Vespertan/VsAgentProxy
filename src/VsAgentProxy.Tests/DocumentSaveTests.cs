@@ -89,8 +89,12 @@ public sealed class DocumentSaveTests
                 object? result = null;
                 switch (call.MethodName)
                 {
-                    case "IsMonikerValid": result = (string)call.Args[0] == SolutionPath; break;
-                    case "GetDocumentCookie": result = currentCookie; break;
+                    case "IsMonikerValid":
+                        result = (string)call.Args[0] == SolutionPath;
+                        break;
+                    case "GetDocumentCookie":
+                        result = currentCookie;
+                        break;
                     case "SaveDocuments":
                         var flags = (uint)call.Args[0];
                         Assert.Equal((uint)__VSRDTSAVEOPTIONS.RDTSAVEOPT_SaveNoChildren
@@ -100,23 +104,36 @@ public sealed class DocumentSaveTests
                         Assert.Equal(VSConstants.VSITEMID_NIL, (uint)call.Args[2]);
                         var cookie = (uint)call.Args[3];
                         Calls.Add("save:" + cookie);
-                        if (ReplaceDuringSave) currentCookie = 9;
+                        if (ReplaceDuringSave)
+                        {
+                            currentCookie = 9;
+                        }
+
                         result = SaveResult;
                         break;
                     case "UpdateDirtyState":
                         Calls.Add("refresh:" + call.Args[0]);
-                        if (FailRefresh) throw new InvalidOperationException("Cannot read document state.");
+                        if (FailRefresh)
+                        {
+                            throw new InvalidOperationException("Cannot read document state.");
+                        }
+
                         Dirty[(uint)call.Args[0]] = StaysDirty;
                         break;
                     case "IsDocumentDirty":
                         Calls.Add("dirty:" + call.Args[0]);
                         result = Dirty[(uint)call.Args[0]];
                         break;
-                    default: throw new NotSupportedException(call.MethodName);
+                    default:
+                        throw new NotSupportedException(call.MethodName);
                 }
+
                 return new ReturnMessage(result, null, 0, call.LogicalCallContext, call);
             }
-            catch (Exception exception) { return new ReturnMessage(exception, call); }
+            catch (Exception exception)
+            {
+                return new ReturnMessage(exception, call);
+            }
         }
     }
 }

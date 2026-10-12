@@ -49,7 +49,8 @@ public sealed class InspectionTests
     {
         var values = new Dictionary<string, object>
         {
-            [StandardTableKeyNames.Line] = 0, [StandardTableKeyNames.Column] = -1,
+            [StandardTableKeyNames.Line] = 0,
+            [StandardTableKeyNames.Column] = -1,
             [StandardTableKeyNames.ErrorSource] = ErrorSource.Other,
             [StandardTableKeyNames.ErrorSeverity] = __VSERRORCATEGORY.EC_WARNING
         };
@@ -176,7 +177,13 @@ public sealed class InspectionTests
         private readonly string message;
         public Entry(string message) => this.message = message;
         public object Identity => this;
-        public bool TryGetValue(string keyName, out object content) { content = keyName == StandardTableKeyNames.Text ? message : keyName == StandardTableKeyNames.ErrorSource ? (object)ErrorSource.Build : null!; return content != null; }
+
+        public bool TryGetValue(string keyName, out object content)
+        {
+            content = keyName == StandardTableKeyNames.Text ? message : keyName == StandardTableKeyNames.ErrorSource ? (object)ErrorSource.Build : null!;
+            return content != null;
+        }
+
         public bool CanSetValue(string keyName) => false;
         public bool TrySetValue(string keyName, object content) => false;
     }
@@ -189,14 +196,20 @@ public sealed class InspectionTests
         public string SourceTypeIdentifier => "test";
         public string Identifier => Fail ? "failed" : "healthy";
         public string DisplayName => Identifier;
+
         public IDisposable Subscribe(ITableDataSink sink)
         {
-            if (Fail) throw new InvalidOperationException("Provider failed");
+            if (Fail)
+            {
+                throw new InvalidOperationException("Provider failed");
+            }
+
             Subscriptions++;
             sink.AddEntries(new[] { new Entry("first"), new Entry("second") });
             sink.IsStable = true;
             return this;
         }
+
         public void Dispose() => Unsubscribed = true;
     }
 
@@ -207,8 +220,19 @@ public sealed class InspectionTests
         public string Identifier => "test";
         public IReadOnlyList<ITableDataSource> Sources => sources;
         public event EventHandler? SourcesChanged { add { } remove { } }
-        public bool AddSource(ITableDataSource source, IReadOnlyCollection<string> columns) { sources.Add(source); return true; }
-        public bool AddSource(ITableDataSource source, params string[] columns) { sources.Add(source); return true; }
+
+        public bool AddSource(ITableDataSource source, IReadOnlyCollection<string> columns)
+        {
+            sources.Add(source);
+            return true;
+        }
+
+        public bool AddSource(ITableDataSource source, params string[] columns)
+        {
+            sources.Add(source);
+            return true;
+        }
+
         public bool RemoveSource(ITableDataSource source) => sources.Remove(source);
         public IReadOnlyList<string> GetColumnsForSources(IEnumerable<ITableDataSource> values) => Array.Empty<string>();
     }
@@ -232,7 +256,13 @@ public sealed class InspectionTests
         public bool Disposed { get; private set; }
         public void StartCaching() => CacheStarts++;
         public void StopCaching() => CacheStops++;
-        public bool TryGetValue(int index, string keyName, out object content) { content = keyName == StandardTableKeyNames.Text ? "version " + VersionNumber : null!; return content != null; }
+
+        public bool TryGetValue(int index, string keyName, out object content)
+        {
+            content = keyName == StandardTableKeyNames.Text ? "version " + VersionNumber : null!;
+            return content != null;
+        }
+
         public int IndexOf(int currentIndex, ITableEntriesSnapshot newSnapshot) => currentIndex;
         public void Dispose() => Disposed = true;
     }

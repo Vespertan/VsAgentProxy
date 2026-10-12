@@ -8,7 +8,7 @@ namespace VsAgentProxy;
 internal static class AgentDocumentation
 {
     internal static string Version => typeof(AgentDocumentation).Assembly.GetName().Version?.ToString(3) ?? "unknown";
-    private const string ResourceName = "VsAgentProxy.AgentProtocol.md";
+    private const string _resourceName = "VsAgentProxy.AgentProtocol.md";
 
     public static JObject GetCapabilities()
     {
@@ -95,16 +95,15 @@ internal static class AgentDocumentation
     public static JObject GetDocumentation(string? requestedLevel)
     {
         var level = string.IsNullOrWhiteSpace(requestedLevel) ? "short" : requestedLevel!.ToLowerInvariant();
-        if (level != "short" && level != "full")
-            throw new ArgumentException("level must be 'short' or 'full'.");
-
-        return new JObject
-        {
-            ["version"] = Version,
-            ["level"] = level,
-            ["format"] = "text/markdown",
-            ["text"] = level == "full" ? ReadEmbeddedDocumentation() : ShortDocumentation
-        };
+        return level != "short" && level != "full"
+            ? throw new ArgumentException("level must be 'short' or 'full'.")
+            : new JObject
+            {
+                ["version"] = Version,
+                ["level"] = level,
+                ["format"] = "text/markdown",
+                ["text"] = level == "full" ? ReadEmbeddedDocumentation() : _shortDocumentation
+            };
     }
 
     private static JObject Method(string name, bool mutatesState, string parameters, string description) =>
@@ -119,13 +118,13 @@ internal static class AgentDocumentation
     private static string ReadEmbeddedDocumentation()
     {
         var assembly = Assembly.GetExecutingAssembly();
-        using var stream = assembly.GetManifestResourceStream(ResourceName)
+        using var stream = assembly.GetManifestResourceStream(_resourceName)
             ?? throw new InvalidOperationException("Embedded agent documentation was not found.");
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd();
     }
 
-    private const string ShortDocumentation = @"# VS Agent Proxy quick help
+    private const string _shortDocumentation = @"# VS Agent Proxy quick help
 
 1. Discover instances with the CLI `instances` command and select one with `--pid`.
 2. Call `status`, then `capabilities` when operation metadata is needed.

@@ -9,5 +9,9 @@
   <ItemGroup>
     <PackageReference Include="MessagePack" Version="2.5.303" />
     <PackageReference Include="Microsoft.ServiceHub.Framework" Version="4.8.55" />
+    <PackageReference Include="Roslynator.Formatting.Analyzers" Version="5.0.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
 </Project>

@@ -28,7 +28,11 @@ internal sealed class NativeSolutionLaunch
             ?? throw new ProxyException("unsupported", "The native solution profile component is not loaded.");
         var version = FileVersionInfo.GetVersionInfo(assembly.Location);
         Version = version.FileVersion;
-        if (version.FileMajorPart != 18) throw new ProxyException("unsupported", "Native solution profiles are currently supported only by the VS 2026 compatibility adapter.");
+        if (version.FileMajorPart != 18)
+        {
+            throw new ProxyException("unsupported", "Native solution profiles are currently supported only by the VS 2026 compatibility adapter.");
+        }
+
         var type = assembly.GetType("Microsoft.VisualStudio.CommonIDE.Solutions.MultiProjectLaunchProfilesPersistence", true)!;
         var profile = assembly.GetType("Microsoft.VisualStudio.CommonIDE.Solutions.LaunchProfile", true)!;
         const BindingFlags flags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
@@ -37,7 +41,13 @@ internal sealed class NativeSolutionLaunch
         setSelected = type.GetMethod("SetSelectedLaunchProfile", flags, null, new[] { profile }, null) ?? throw Missing();
         selected = type.GetField("selectedLaunchProfile", flags) ?? throw Missing();
         foreach (var property in new[] { "Name", "Projects", "IsShared" })
-            if (profile.GetProperty(property) == null) throw Missing();
+        {
+            if (profile.GetProperty(property) == null)
+            {
+                throw Missing();
+            }
+        }
+
         Startup = ServiceProvider.GlobalProvider.GetService(typeof(SolutionStartupServiceNative)) as ISolutionStartupNative ?? throw Missing();
     }
 
@@ -46,27 +56,46 @@ internal sealed class NativeSolutionLaunch
     public void RestoreSelected(object? value) => Invoke(setSelected, value);
     public async Task<object[]> ProfilesAsync(CancellationToken token) => ((IEnumerable)(await AwaitAsync(Invoke(list, token)!))!).Cast<object>().ToArray();
     public async Task ApplyAsync(object profile, CancellationToken token) => await AwaitAsync(Invoke(apply, profile, token)!);
+
     public static object? Property(object? value, string name)
     {
-        if (value == null) return null;
+        if (value == null)
+        {
+            return null;
+        }
+
         var type = value.GetType();
         var property = type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        if (property != null) return property.GetValue(value);
+        if (property != null)
+        {
+            return property.GetValue(value);
+        }
+
         // IVsProjectInfo is implemented explicitly by VS's internal Project class.
         foreach (var iface in type.GetInterfaces())
         {
             property = iface.GetProperty(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                 ?? iface.GetProperties().FirstOrDefault(p => p.Name.EndsWith("." + name, StringComparison.Ordinal));
-            if (property != null) return property.GetValue(value);
+            if (property != null)
+            {
+                return property.GetValue(value);
+            }
         }
+
         return null;
     }
 
     private static object? Invoke(MethodInfo method, params object?[] args)
     {
-        try { return method.Invoke(null, args); }
+        try
+        {
+            return method.Invoke(null, args);
+        }
         catch (TargetInvocationException e) when (e.InnerException != null)
-        { System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(e.InnerException).Throw(); throw; }
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(e.InnerException).Throw();
+            throw;
+        }
     }
 
     private static async Task<object?> AwaitAsync(object valueTask)

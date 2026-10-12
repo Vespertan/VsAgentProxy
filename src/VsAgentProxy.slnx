@@ -7,6 +7,7 @@
     <File Path="../LICENSE" />
     <File Path="../NuGet.Tool.config" />
     <File Path="../README.md" />
+    <File Path=".editorconfig" />
   </Folder>
   <Project Path="VsAgentProxy/VsAgentProxy.csproj">
     <Deploy Solution="Debug|*" />

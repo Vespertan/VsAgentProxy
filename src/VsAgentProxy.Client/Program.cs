@@ -6,9 +6,20 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Reflection;
 
-try { return await RunAsync(args); }
-catch (ArgumentException exception) { await Console.Error.WriteLineAsync(exception.Message); return 1; }
-catch (JsonException exception) { await Console.Error.WriteLineAsync("Invalid JSON: " + exception.Message); return 1; }
+try
+{
+    return await RunAsync(args);
+}
+catch (ArgumentException exception)
+{
+    await Console.Error.WriteLineAsync(exception.Message);
+    return 1;
+}
+catch (JsonException exception)
+{
+    await Console.Error.WriteLineAsync("Invalid JSON: " + exception.Message);
+    return 1;
+}
 
 static async Task<int> RunAsync(string[] args)
 {
@@ -79,7 +90,10 @@ static async Task<int> RunAsync(string[] args)
     int? requestedPid = null;
     var arguments = args.ToList();
     if (arguments[0] == "--pid" && (arguments.Count < 2 || !int.TryParse(arguments[1], out var checkedPid) || checkedPid <= 0))
+    {
         throw new ArgumentException("--pid requires a positive Visual Studio process ID.");
+    }
+
     if (arguments.Count >= 2 && arguments[0] == "--pid" && int.TryParse(arguments[1], out var pid))
     {
         requestedPid = pid;
@@ -117,18 +131,30 @@ static async Task<int> RunAsync(string[] args)
     if (command == "output")
     {
         if (arguments.Count > 1 && !arguments[1].StartsWith("--", StringComparison.Ordinal))
+        {
             parameters["pane"] = arguments[1];
+        }
+
         if (arguments.Count > 2 && int.TryParse(arguments[2], out var maxChars))
+        {
             parameters["maxChars"] = maxChars;
+        }
 
         for (var index = 1; index + 1 < arguments.Count; index++)
         {
             if (!int.TryParse(arguments[index + 1], out var value))
+            {
                 continue;
+            }
+
             if (arguments[index] == "--offset")
+            {
                 parameters["offset"] = value;
+            }
             else if (arguments[index] == "--count")
+            {
                 parameters["count"] = value;
+            }
         }
     }
 
@@ -150,12 +176,21 @@ static async Task<int> RunAsync(string[] args)
     try
     {
         if (command == "watchSelection")
+        {
             return await WatchSelectionAsync(instance, connectTimeout, responseTimeout, TakeInteger(parameters, "durationMs", 60000, 100, 3600000));
+        }
+
         if (command == "waitForState")
+        {
             return await WaitAsync(instance, parameters["operationId"]?.GetValue<string>(), parameters["state"]?.GetValue<string>(), connectTimeout, responseTimeout, waitTimeout, pollMs);
+        }
+
         var response = await SendAsync(instance, request, connectTimeout, responseTimeout);
         if (wait && response["ok"]?.GetValue<bool>() == true && response["result"]?["operationId"] is JsonValue operationId)
+        {
             return await WaitAsync(instance, operationId.GetValue<string>(), null, connectTimeout, responseTimeout, waitTimeout, pollMs);
+        }
+
         await Console.Out.WriteLineAsync(response.ToJsonString(CreateJsonOptions()));
         return response["ok"]?.GetValue<bool>() == true ? 0 : 1;
     }
@@ -173,43 +208,82 @@ static void AddNamedOptions(JsonObject parameters, IReadOnlyList<string> argumen
         var option = arguments[index];
         if (!option.StartsWith("--", StringComparison.Ordinal))
         {
-            if (command != "output") throw new ArgumentException("Unexpected positional argument: " + option);
+            if (command != "output")
+            {
+                throw new ArgumentException("Unexpected positional argument: " + option);
+            }
+
             continue;
         }
-        if (index + 1 >= arguments.Count || arguments[index + 1].StartsWith("--", StringComparison.Ordinal)) throw new ArgumentException("Missing value for " + option);
+
+        if (index + 1 >= arguments.Count || arguments[index + 1].StartsWith("--", StringComparison.Ordinal))
+        {
+            throw new ArgumentException("Missing value for " + option);
+        }
+
         var name = option.Substring(2);
         var text = arguments[index + 1];
         if (name == "paramsJson")
         {
-            if (JsonNode.Parse(text) is not JsonObject values) throw new ArgumentException("paramsJson must be a JSON object.");
-            foreach (var value in values) parameters[value.Key] = value.Value?.DeepClone();
+            if (JsonNode.Parse(text) is not JsonObject values)
+            {
+                throw new ArgumentException("paramsJson must be a JSON object.");
+            }
+
+            foreach (var value in values)
+            {
+                parameters[value.Key] = value.Value?.DeepClone();
+            }
         }
         else if (name.EndsWith("Json", StringComparison.Ordinal))
+        {
             parameters[name[..^4]] = JsonNode.Parse(text);
+        }
         else if ((name == "path" && command is "setStartupProjects" or "saveDocuments") || (name == "name" && command == "projectProperties"))
         {
             var key = name == "path" ? "paths" : "names";
-            if (parameters[key] is not JsonArray) parameters[key] = new JsonArray();
+            if (parameters[key] is not JsonArray)
+            {
+                parameters[key] = new JsonArray();
+            }
+
             ((JsonArray)parameters[key]!).Add(text);
         }
         else if (name is "path" or "project" or "file" or "name" or "id" or "idempotencyKey" or "expression" or "condition" or "reference" or "pane" or "paneId" or "sessionId" or "operationId")
+        {
             parameters[name] = text;
+        }
         else if (bool.TryParse(text, out var boolean))
+        {
             parameters[name] = boolean;
+        }
         else if (int.TryParse(text, out var integer))
+        {
             parameters[name] = integer;
+        }
         else
+        {
             parameters[name] = text;
+        }
+
         index++;
     }
 }
 
 static int TakeInteger(JsonObject values, string key, int fallback, int min, int max)
 {
-    if (!values.TryGetPropertyValue(key, out var value)) return fallback;
+    if (!values.TryGetPropertyValue(key, out var value))
+    {
+        return fallback;
+    }
+
     if (value is not JsonValue scalar || !scalar.TryGetValue<int>(out var number) || number < min || number > max)
+    {
         throw new ArgumentException($"{key} must be an integer between {min} and {max}.");
-    values.Remove(key); return number;
+    }
+
+    values.Remove(key);
+    return number;
 }
 
 static JsonObject Request(string method, JsonObject parameters) => new() { ["id"] = Guid.NewGuid().ToString("N"), ["method"] = method, ["params"] = parameters };
@@ -226,9 +300,14 @@ static async Task<JsonObject> SendAsync(PipeInstance instance, JsonObject reques
     {
         using var hub = await connection.Broker.GetProxyAsync<IHubService>(HubServices.Hub, cancellationToken: timeout.Token)
             ?? throw new InvalidOperationException("Hub status service is unavailable.");
-        return new JsonObject { ["id"] = request["id"]?.DeepClone(), ["ok"] = true,
-            ["result"] = JsonSerializer.SerializeToNode(await hub.GetStatusAsync(timeout.Token).WaitAsync(timeout.Token)) };
+        return new JsonObject
+        {
+            ["id"] = request["id"]?.DeepClone(),
+            ["ok"] = true,
+            ["result"] = JsonSerializer.SerializeToNode(await hub.GetStatusAsync(timeout.Token).WaitAsync(timeout.Token))
+        };
     }
+
     if (command is "selection" or "solutionTree")
     {
         using var explorer = await connection.Broker.GetProxyAsync<ISolutionExplorerService>(HubServices.SolutionExplorer, cancellationToken: timeout.Token)
@@ -236,9 +315,19 @@ static async Task<JsonObject> SendAsync(PipeInstance instance, JsonObject reques
         var items = await (command == "selection" ? explorer.GetSelectedAsync(timeout.Token) : explorer.GetTreeAsync(timeout.Token)).WaitAsync(timeout.Token);
         return new JsonObject { ["id"] = request["id"]?.DeepClone(), ["ok"] = true, ["result"] = JsonSerializer.SerializeToNode(items) };
     }
+
     using var agent = await connection.Broker.GetProxyAsync<IAgentService>(AgentServices.Agent, cancellationToken: timeout.Token);
-    if (agent == null) return new JsonObject { ["id"] = request["id"]?.DeepClone(), ["ok"] = false,
-        ["errorCode"] = "serviceUnavailable", ["error"] = "VsAgent service 1.0 is unavailable. Install/enable VsAgentProxy 0.8+ with Hub 1.7+." };
+    if (agent == null)
+    {
+        return new JsonObject
+        {
+            ["id"] = request["id"]?.DeepClone(),
+            ["ok"] = false,
+            ["errorCode"] = "serviceUnavailable",
+            ["error"] = "VsAgent service 1.0 is unavailable. Install/enable VsAgentProxy 0.8+ with Hub 1.7+."
+        };
+    }
+
     var response = await agent.ExecuteAsync(request.ToJsonString(), timeout.Token).WaitAsync(timeout.Token);
     return JsonNode.Parse(response) as JsonObject ?? throw new IOException("Invalid VsAgent response.");
 }
@@ -246,21 +335,42 @@ static async Task<JsonObject> SendAsync(PipeInstance instance, JsonObject reques
 static async Task<int> WaitAsync(PipeInstance instance, string? operationId, string? requestedState, int connectMs, int responseMs, int waitMs, int pollMs)
 {
     var state = requestedState switch { "break" => "dbgBreakMode", "run" => "dbgRunMode", "design" => "dbgDesignMode", _ => requestedState };
-    if (operationId == null && state is not ("dbgBreakMode" or "dbgRunMode" or "dbgDesignMode")) throw new ArgumentException("Specify operationId or state break|run|design.");
+    if (operationId == null && state is not ("dbgBreakMode" or "dbgRunMode" or "dbgDesignMode"))
+    {
+        throw new ArgumentException("Specify operationId or state break|run|design.");
+    }
+
     var elapsed = Stopwatch.StartNew();
     using var deadline = new CancellationTokenSource(waitMs);
     JsonObject? last = null;
     while (elapsed.ElapsedMilliseconds < waitMs)
     {
         var remaining = Math.Max(1, waitMs - (int)elapsed.ElapsedMilliseconds);
-        try { last = await SendAsync(instance, operationId == null ? Request("status", new()) : Request("operationStatus", new() { ["id"] = operationId }), Math.Min(connectMs, remaining), Math.Min(responseMs, remaining), deadline.Token); }
-        catch (OperationCanceledException) when (deadline.IsCancellationRequested || elapsed.ElapsedMilliseconds >= waitMs) { break; }
-        if (last["ok"]?.GetValue<bool>() != true) { await Console.Out.WriteLineAsync(last.ToJsonString(CreateJsonOptions())); return 1; }
+        try
+        {
+            last = await SendAsync(instance, operationId == null ? Request("status", new()) : Request("operationStatus", new() { ["id"] = operationId }), Math.Min(connectMs, remaining), Math.Min(responseMs, remaining), deadline.Token);
+        }
+        catch (OperationCanceledException) when (deadline.IsCancellationRequested || elapsed.ElapsedMilliseconds >= waitMs)
+        {
+            break;
+        }
+
+        if (last["ok"]?.GetValue<bool>() != true)
+        {
+            await Console.Out.WriteLineAsync(last.ToJsonString(CreateJsonOptions()));
+            return 1;
+        }
+
         var actual = last["result"]?[operationId == null ? "mode" : "state"]?.GetValue<string>();
         if ((operationId == null && actual == state) || (operationId != null && actual is "succeeded" or "failed" or "cancelled" or "unknown"))
-        { await Console.Out.WriteLineAsync(last.ToJsonString(CreateJsonOptions())); return operationId == null || actual == "succeeded" ? 0 : actual == "unknown" ? 4 : 1; }
+        {
+            await Console.Out.WriteLineAsync(last.ToJsonString(CreateJsonOptions()));
+            return operationId == null || actual == "succeeded" ? 0 : actual == "unknown" ? 4 : 1;
+        }
+
         await Task.Delay(Math.Min(pollMs, Math.Max(1, waitMs - (int)elapsed.ElapsedMilliseconds)));
     }
+
     await Console.Out.WriteLineAsync(new JsonObject { ["ok"] = false, ["errorCode"] = "waitTimedOut", ["operationCancelled"] = false, ["lastResponse"] = last }.ToJsonString(CreateJsonOptions()));
     return 4;
 }
@@ -275,18 +385,40 @@ static async Task<object> ProbeAsync(PipeInstance instance)
         using var hub = await connection.Broker.GetProxyAsync<IHubService>(HubServices.Hub, cancellationToken: timeout.Token)
             ?? throw new InvalidOperationException("Hub status service unavailable.");
         var status = await hub.GetStatusAsync(timeout.Token).WaitAsync(timeout.Token);
-        if (status.ProcessId != instance.Pid) throw new IOException("Hub PID does not match discovery.");
+        if (status.ProcessId != instance.Pid)
+        {
+            throw new IOException("Hub PID does not match discovery.");
+        }
+
         hubState = "ready";
         using var agent = await connection.Broker.GetProxyAsync<IAgentService>(AgentServices.Agent, cancellationToken: timeout.Token);
-        if (agent == null) return new { instance.Pid, instance.Pipe, instance.StartedUtc, Hub = hubState, VsAgent = "unavailable", Error = (string?)null };
+        if (agent == null)
+        {
+            return new { instance.Pid, instance.Pipe, instance.StartedUtc, Hub = hubState, VsAgent = "unavailable", Error = (string?)null };
+        }
+
         var response = JsonNode.Parse(await agent.ExecuteAsync(Request("ping", new()).ToJsonString(), timeout.Token).WaitAsync(timeout.Token));
-        return new { instance.Pid, instance.Pipe, instance.StartedUtc, Hub = hubState,
-            VsAgent = response?["ok"]?.GetValue<bool>() == true ? "ready" : "error", Error = (string?)null };
+        return new
+        {
+            instance.Pid,
+            instance.Pipe,
+            instance.StartedUtc,
+            Hub = hubState,
+            VsAgent = response?["ok"]?.GetValue<bool>() == true ? "ready" : "error",
+            Error = (string?)null
+        };
     }
     catch (Exception ex)
     {
-        return new { instance.Pid, instance.Pipe, instance.StartedUtc, Hub = hubState,
-            VsAgent = hubState == "ready" ? "error" : "notChecked", Error = ex.Message };
+        return new
+        {
+            instance.Pid,
+            instance.Pipe,
+            instance.StartedUtc,
+            Hub = hubState,
+            VsAgent = hubState == "ready" ? "error" : "notChecked",
+            Error = ex.Message
+        };
     }
 }
 
@@ -303,7 +435,15 @@ static async Task<int> WatchSelectionAsync(PipeInstance instance, int connectMs,
             ?? throw new InvalidOperationException("Hub Solution Explorer service is unavailable.");
         // Coalesce bursts; all output is written by this one consumer.
         using var changed = new SemaphoreSlim(0, 1);
-        EventHandler handler = (_, _) => { try { changed.Release(); } catch (SemaphoreFullException) { } catch (ObjectDisposedException) { } };
+        EventHandler handler = (_, _) =>
+        {
+            try
+            {
+                changed.Release();
+            }
+            catch (SemaphoreFullException) { }
+            catch (ObjectDisposedException) { }
+        };
         service.SelectionChanged += handler;
         try
         {
@@ -312,7 +452,10 @@ static async Task<int> WatchSelectionAsync(PipeInstance instance, int connectMs,
             {
                 var signal = changed.WaitAsync(duration.Token);
                 if (await Task.WhenAny(signal, connection.Completion) == connection.Completion)
+                {
                     throw new IOException("Hub disconnected while watching selection.");
+                }
+
                 await signal;
                 using var response = CancellationTokenSource.CreateLinkedTokenSource(duration.Token);
                 response.CancelAfter(responseMs);
@@ -320,10 +463,17 @@ static async Task<int> WatchSelectionAsync(PipeInstance instance, int connectMs,
                 await Console.Out.WriteLineAsync(JsonSerializer.Serialize(new { Event = "SelectionChanged", Items = items }));
             }
         }
-        finally { service.SelectionChanged -= handler; }
+        finally
+        {
+            service.SelectionChanged -= handler;
+        }
     }
     catch (OperationCanceledException) when (duration.IsCancellationRequested) { }
-    finally { Console.CancelKeyPress -= cancel; }
+    finally
+    {
+        Console.CancelKeyPress -= cancel;
+    }
+
     return 0;
 }
 
@@ -346,7 +496,9 @@ static IEnumerable<PipeInstance> DiscoverInstances()
         if (!pipe.StartsWith(prefix, StringComparison.Ordinal)
             || !int.TryParse(pipe[prefix.Length..], out var pid)
             || pid <= 0)
+        {
             continue;
+        }
 
         DateTime? startedUtc = null;
         try
