@@ -1,67 +1,69 @@
 <Project>
-  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
-  <PropertyGroup>
-    <TargetFramework>net472</TargetFramework>
-    <LangVersion>latest</LangVersion>
-    <Nullable>enable</Nullable>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <GeneratePkgDefFile>true</GeneratePkgDefFile>
-    <DeployExtension Condition="'$(BuildingInsideVisualStudio)' == 'true' and '$(MSBuildRuntimeType)' != 'Core'">true</DeployExtension>
-    <DeployExtension Condition="'$(DeployExtension)' == ''">false</DeployExtension>
-    <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
-    <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
-    <UseCodebase>true</UseCodebase>
-  </PropertyGroup>
-  <ItemGroup>
-    <Compile Include="C:\Users\mg\.nuget\packages\vespertan.visualstudio.vsct\1.1.0\Source\VespertanHub.cs" Link="VespertanHub.cs" />
-    <Compile Include="C:\Users\mg\.nuget\packages\vespertan.visualstudio.vsct\1.1.0\Source\VespertanOptions.cs" Link="VespertanOptions.cs" />
-  </ItemGroup>
+    <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+    <PropertyGroup>
+        <TargetFramework>net472</TargetFramework>
+        <LangVersion>latest</LangVersion>
+        <Nullable>enable</Nullable>
+        <Version>0.8.0</Version>
+        <Description>Local, allow-listed bridge between Visual Studio and an automation client.</Description>
+        <Title>Vespertan Visual Studio Agent Proxy</Title>
+        <GeneratePkgDefFile>true</GeneratePkgDefFile>
+        <DeployExtension Condition="'$(BuildingInsideVisualStudio)' == 'true' and '$(MSBuildRuntimeType)' != 'Core'">true</DeployExtension>
+        <DeployExtension Condition="'$(DeployExtension)' == ''">false</DeployExtension>
+        <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
+        <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
+        <UseCodebase>true</UseCodebase>
+    </PropertyGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="Vespertan.VisualStudio.AgentProxy.Tests" />
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Roslynator.Analyzers" Version="5.0.1">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Roslynator.Formatting.Analyzers" Version="5.0.1">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Vespertan.VisualStudio.Contracts" Version="1.9.0" />
+    </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="../Vespertan.VisualStudio.AgentProxy.Contracts/Vespertan.VisualStudio.AgentProxy.Contracts.csproj" />
-    <PackageReference Include="Roslynator.Analyzers" Version="5.0.1">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-    <PackageReference Include="Roslynator.Formatting.Analyzers" Version="5.0.1">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-    <PackageReference Include="Vespertan.VisualStudio.Contracts" Version="1.4.0" />
-  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" ExcludeAssets="runtime" />
+        <PackageReference Include="Microsoft.VisualStudio.ProjectSystem" Version="17.9.380" ExcludeAssets="runtime" />
+        <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2120" PrivateAssets="all" />
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" ExcludeAssets="runtime" />
-    <PackageReference Include="Microsoft.VisualStudio.ProjectSystem" Version="17.9.380" ExcludeAssets="runtime" />
-    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2120" PrivateAssets="all" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="Vespertan.VisualStudio.Vsct" Version="1.1.0" PrivateAssets="all" />
-  </ItemGroup>
+    <ItemGroup>
+        <VSCTCompile Include="Commands.vsct">
+            <ResourceName>Menus.ctmenu</ResourceName>
+        </VSCTCompile>
+        <Reference Include="System.Design" />
+        <None Update="source.extension.vsixmanifest">
+            <SubType>Designer</SubType>
+        </None>
+        <Content Include="Resources\VsAgentProxy.png">
+            <IncludeInVSIX>true</IncludeInVSIX>
+        </Content>
+        <EmbeddedResource Include="..\..\docs\AGENT_PROTOCOL.md" Link="AgentProtocol.md">
+            <LogicalName>Vespertan.VisualStudio.AgentProxy.AgentProtocol.md</LogicalName>
+        </EmbeddedResource>
+    </ItemGroup>
 
-  <ItemGroup>
-    <VSCTCompile Include="Commands.vsct">
-      <ResourceName>Menus.ctmenu</ResourceName>
-    </VSCTCompile>
-    <Reference Include="System.Design" />
-    <None Update="source.extension.vsixmanifest">
-      <SubType>Designer</SubType>
-    </None>
-    <Content Include="Resources\VsAgentProxy.png">
-      <IncludeInVSIX>true</IncludeInVSIX>
-    </Content>
-    <EmbeddedResource Include="..\..\docs\AGENT_PROTOCOL.md" Link="AgentProtocol.md">
-      <LogicalName>Vespertan.VisualStudio.AgentProxy.AgentProtocol.md</LogicalName>
-    </EmbeddedResource>
-  </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\Vespertan.VisualStudio.AgentProxy.Contracts\Vespertan.VisualStudio.AgentProxy.Contracts.csproj" />
+    </ItemGroup>
 
-  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
-  <Import Project="$(NuGetPackageRoot)microsoft.vssdk.buildtools\17.14.2120\tools\vssdk\Microsoft.VsSDK.targets" />
+    <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+    <Import Project="$(NuGetPackageRoot)microsoft.vssdk.buildtools\17.14.2120\tools\vssdk\Microsoft.VsSDK.targets" />
 
-  <!-- BuildTools 17.14.2120 skips changed manifest text when its length is unchanged
+    <!-- BuildTools 17.14.2120 skips changed manifest text when its length is unchanged
        (for example 0.5.0 -> 0.6.0). Regenerate the derived file before detokenizing. -->
-  <Target Name="RefreshIntermediateVsixManifest" BeforeTargets="DetokenizeVsixManifestFile">
-    <Delete Files="$(IntermediateVsixManifest)" />
-  </Target>
+    <Target Name="RefreshIntermediateVsixManifest" BeforeTargets="DetokenizeVsixManifestFile">
+        <Delete Files="$(IntermediateVsixManifest)" />
+    </Target>
 
-  <Target Name="BuildVsixContainer" AfterTargets="Build" DependsOnTargets="DetokenizeVsixManifestFile;CopyVsixManifestFile;CreateVsixContainer" />
+    <Target Name="BuildVsixContainer" AfterTargets="Build" DependsOnTargets="DetokenizeVsixManifestFile;CopyVsixManifestFile;CreateVsixContainer" />
 </Project>

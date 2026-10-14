@@ -3,7 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.ServiceHub.Framework;
 
-namespace VsAgentProxy.Contracts;
+namespace Vespertan.VisualStudio.AgentProxy.Contracts;
 
 public static class AgentServices
 {

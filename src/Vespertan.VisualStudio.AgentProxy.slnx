@@ -7,12 +7,13 @@
     <File Path="../LICENSE" />
     <File Path="../NuGet.Tool.config" />
     <File Path="../README.md" />
-    <File Path=".editorconfig" />
+    <File Path="../.editorconfig" />
   </Folder>
   <Project Path="Vespertan.VisualStudio.AgentProxy/Vespertan.VisualStudio.AgentProxy.csproj">
     <Deploy Solution="Debug|*" />
   </Project>
   <Project Path="Vespertan.VisualStudio.AgentProxy.Client/Vespertan.VisualStudio.AgentProxy.Client.csproj" />
-  <Project Path="Vespertan.VisualStudio.AgentProxy.Tests/Vespertan.VisualStudio.AgentProxy.Tests.csproj" />
+  <Project Path="../tests/Vespertan.VisualStudio.AgentProxy.Tests/Vespertan.VisualStudio.AgentProxy.Tests.csproj" />
   <Project Path="Vespertan.VisualStudio.AgentProxy.Contracts/Vespertan.VisualStudio.AgentProxy.Contracts.csproj" />
+  <Project Path="../tests/Vespertan.VisualStudio.AgentProxy.Client.Tests/Vespertan.VisualStudio.AgentProxy.Client.Tests.csproj" />
 </Solution>

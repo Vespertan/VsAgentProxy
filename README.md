@@ -1,6 +1,6 @@
 # VS Agent Proxy
 
-Current version: `0.8.0` (extension and client), contract version 2.
+Current extension version: `0.8.0`. The typed RPC service contract is `1.0`.
 
 VS Agent Proxy is a local bridge between Visual Studio and automation clients.
 The extension publishes an explicit allow-list of operations through the central
@@ -31,6 +31,27 @@ Studio instance has a Hub pipe named `VisualStudio.Hub-{PID}`. The client discov
 active instances by enumerating Named Pipes and does not use PID descriptor files.
 
 ## Build and install
+
+Source files follow the same layout as VsHub:
+
+```text
+src/
+  Vespertan.VisualStudio.AgentProxy/
+    Interop/       Native Visual Studio compatibility adapters
+    Rpc/           Agent service, sessions and request infrastructure
+    Services/      IDE operations and event observers
+  Vespertan.VisualStudio.AgentProxy.Contracts/
+    Models/        DTOs, method options and results
+    Services/      Public RPC interfaces
+    AgentServices.cs
+  Vespertan.VisualStudio.AgentProxy.Client/
+tests/
+  Vespertan.VisualStudio.AgentProxy.Tests/
+  Vespertan.VisualStudio.AgentProxy.Client.Tests/
+```
+
+The root `.editorconfig` applies to both source and tests. Public contract types
+keep the `Vespertan.VisualStudio.AgentProxy.Contracts` namespace, as in VsHub.
 
 Building uses `Vespertan.VisualStudio.Vsct` 1.1.0 for shared menu identifiers
 and `Vespertan.VisualStudio.Contracts` 1.4.0 for service contracts and connections.
@@ -67,6 +88,8 @@ dotnet tool install --global --configfile ./NuGet.Tool.config Vespertan.VisualSt
 This build requires Hub 1.7+ and a CLI built against the same contracts.
 The proxy registers `Vespertan.VisualStudio.AgentProxy/1.0`; Hub owns transport and routes service
 requests. `instances` verifies Hub health and VsAgent availability separately.
+`IAgentService` exposes individual asynchronous methods with typed options and
+results. JSON command envelopes are a CLI input/output format, not the RPC contract.
 The runtime dependency is `Vespertan.VisualStudio.Contracts` 1.4.0,
 which also contains `HubConnection` for the CLI.
 Hub service commands: `hubStatus`, `selection`, `solutionTree`, and
@@ -169,7 +192,7 @@ Line and column numbers are one-based. Details: [agent protocol](docs/AGENT_PROT
 Contract and snapshot handling tests:
 
 ```powershell
-dotnet test ./src/Vespertan.VisualStudio.AgentProxy.Tests/Vespertan.VisualStudio.AgentProxy.Tests.csproj
+dotnet test ./tests/Vespertan.VisualStudio.AgentProxy.Tests/Vespertan.VisualStudio.AgentProxy.Tests.csproj
 ```
 
 `currentHits` may be `null`; DTE counters can be unreliable, so a separate

@@ -16,10 +16,11 @@ Hub process; use an explicit PID when several instances are running. Regular
 commands do not send a preliminary ping. An unavailable VsAgent returns
 `serviceUnavailable`; a connection/activation failure returns CLI exit code 3.
 
-VsAgent command/result JSON envelopes remain compatible with contract version 2,
-but are now arguments/results of `IAgentService.ExecuteAsync`. Do not send raw
-JSON lines to the Hub pipe. Old clients require the old proxy; update Hub, proxy
-and CLI together. Operation IDs, session IDs, mutation idempotency and wait
+`IAgentService` version 1.0 exposes typed asynchronous methods, options and results.
+The CLI maps command names to these methods and formats responses as JSON envelopes.
+Do not send raw JSON lines to the Hub pipe. Clients using the former string-based
+`ExecuteAsync` contract must be rebuilt with the typed contract and paired with the
+updated proxy. Operation IDs, session IDs, mutation idempotency and wait
 semantics are preserved. A timeout does not prove that a VS operation was cancelled;
 inspect operationStatus before retrying a mutation.
 
@@ -416,18 +417,27 @@ vsagent --pid 12345 breakpointRemove --index 0
 Prefer `id`. `index` is zero-based and unstable after an item is added or
 removed.
 
-## 7. RPC command envelope
+## 7. Typed RPC service and CLI envelopes
 
 The client obtains `IAgentService` using `AgentServices.Agent` through
-`HubConnection.Broker.GetProxyAsync`. It passes a JSON string to `ExecuteAsync`:
+`HubConnection.Broker.GetProxyAsync` and calls a typed method:
 
-```json
-{"id":"abc","method":"locals","params":{"frameIndex":0,"maxDepth":1}}
+```csharp
+using var agent = await connection.Broker.GetProxyAsync<IAgentService>(
+    AgentServices.Agent, cancellationToken: cancellationToken);
+var response = await agent.GetLocalsAsync(
+    new FrameExpressionsOptions { FrameIndex = 0, MaxDepth = 1 }, cancellationToken);
+if (response.Ok)
+{
+    var locals = response.Result.Items;
+}
 ```
 
-The method returns the response envelope as a JSON string. RPC performs framing,
-request correlation, cancellation and error transport; raw JSON lines are not
-accepted on the pipe. Method and parameter names remain case-sensitive.
+Each method returns `AgentResult<T>` with a concrete result DTO, domain error fields
+and optional replay information. Mutation options include `IdempotencyKey`.
+RPC performs framing, request correlation and cancellation. The CLI owns its JSON
+envelope and request ID; neither is passed as a JSON string over RPC.
+CLI command names remain case-sensitive. Raw JSON lines are not accepted on the pipe.
 Hub accepts multiple connections; VsAgent serializes command execution across
 clients to preserve operation ordering and mutation idempotency.
 

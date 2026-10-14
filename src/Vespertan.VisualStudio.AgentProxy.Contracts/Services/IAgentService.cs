@@ -1,0 +1,64 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace Vespertan.VisualStudio.AgentProxy.Contracts;
+
+public interface IAgentService : IDisposable
+{
+    Task<AgentResult<AgentInfo>> PingAsync(CancellationToken cancellationToken);
+    Task<AgentResult<AgentCapabilities>> GetCapabilitiesAsync(CancellationToken cancellationToken);
+    Task<AgentResult<AgentGuide>> GetDocumentationAsync(DocumentationOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<DebuggerStatus>> GetStatusAsync(CancellationToken cancellationToken);
+    Task<AgentResult<ProjectState>> GetProjectsAsync(CancellationToken cancellationToken);
+    Task<AgentResult<DocumentsResult>> GetDocumentsAsync(CancellationToken cancellationToken);
+    Task<AgentResult<SaveDocumentsResult>> SaveDocumentsAsync(PathsOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<ReloadProjectResult>> ReloadProjectAsync(ReloadProjectOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<StartupProjectsResult>> GetStartupProjectsAsync(CancellationToken cancellationToken);
+    Task<AgentResult<StartupProjectsResult>> SetStartupProjectsAsync(PathsOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<ProjectPropertiesResult>> GetProjectPropertiesAsync(ProjectPropertiesOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<ConfigurationsResult>> GetConfigurationsAsync(CancellationToken cancellationToken);
+    Task<AgentResult<AcceptedResult>> CancelBuildAsync(MutationOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<AgentOperation>> GetOperationStatusAsync(OperationStatusOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<EventsResult>> GetEventsAsync(EventsOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<StopReasonResult>> GetStopReasonAsync(CancellationToken cancellationToken);
+    Task<AgentResult<LaunchProfilesResult>> GetLaunchProfilesAsync(LaunchProfilesOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<LaunchProfilesResult>> SelectLaunchProfileAsync(SelectLaunchProfileOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<SolutionLaunchProfilesResult>> GetSolutionLaunchProfilesAsync(CancellationToken cancellationToken);
+    Task<AgentResult<SolutionLaunchProfilesResult>> SelectSolutionLaunchProfileAsync(SelectSolutionLaunchProfileOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<LanguageServiceStatus>> GetLanguageServiceStatusAsync(DocumentPathOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<TerminalsResult>> GetTerminalsAsync(CancellationToken cancellationToken);
+    Task<AgentResult<TerminalsResult>> GetTerminalOutputAsync(TerminalOutputOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<ScopesResult>> GetScopesAsync(ScopesOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<VariablesResult>> GetVariablesAsync(VariablesOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<ThreadsResult>> GetThreadsAsync(CancellationToken cancellationToken);
+    Task<AgentResult<ProcessesResult>> GetProcessesAsync(CancellationToken cancellationToken);
+    Task<AgentResult<SelectContextResult>> SelectContextAsync(SelectContextOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<LaunchCheckResult>> GetLaunchCheckAsync(CancellationToken cancellationToken);
+    Task<AgentResult<StackFrameInfo[]>> GetStackTraceAsync(CancellationToken cancellationToken);
+    Task<AgentResult<FrameExpressionsResult>> GetLocalsAsync(FrameExpressionsOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<FrameExpressionsResult>> GetArgumentsAsync(FrameExpressionsOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<EvaluateResult>> EvaluateAsync(EvaluateOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<BreakpointInfo[]>> GetBreakpointsAsync(CancellationToken cancellationToken);
+    Task<AgentResult<BreakpointInfo[]>> AddBreakpointAsync(AddBreakpointOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<RemoveBreakpointResult>> RemoveBreakpointAsync(BreakpointSelector options, CancellationToken cancellationToken);
+    Task<AgentResult<BreakpointInfo>> SetBreakpointEnabledAsync(SetBreakpointEnabledOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<BreakpointInfo[]>> SetBreakpointCriteriaAsync(SetBreakpointCriteriaOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<ActiveDocumentResult>> GetActiveDocumentAsync(CancellationToken cancellationToken);
+    Task<AgentResult<OutputResult>> GetOutputAsync(OutputOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<DiagnosticsResult>> GetDiagnosticsAsync(DiagnosticsOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<DiagnosticsResult>> GetDocumentDiagnosticsAsync(DocumentDiagnosticsOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<AgentSnapshot>> GetSnapshotAsync(CancellationToken cancellationToken);
+    Task<AgentResult<OperationAcceptedResult>> BuildAsync(MutationOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<OperationAcceptedResult>> RebuildAsync(MutationOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<OperationAcceptedResult>> CleanAsync(MutationOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<OperationAcceptedResult>> StartAsync(MutationOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<OperationAcceptedResult>> StartWithoutDebuggingAsync(MutationOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<OperationAcceptedResult>> RestartAsync(MutationOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<AcceptedResult>> StepOverAsync(MutationOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<AcceptedResult>> StepIntoAsync(MutationOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<AcceptedResult>> StepOutAsync(MutationOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<AcceptedResult>> ContinueAsync(MutationOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<AcceptedResult>> BreakAsync(MutationOptions options, CancellationToken cancellationToken);
+    Task<AgentResult<AcceptedResult>> StopAsync(MutationOptions options, CancellationToken cancellationToken);
+}

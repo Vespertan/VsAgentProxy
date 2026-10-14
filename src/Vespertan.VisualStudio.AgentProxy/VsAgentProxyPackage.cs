@@ -12,20 +12,22 @@ using Microsoft.VisualStudio.Shell.TableManager;
 using Microsoft.ServiceHub.Framework;
 using Microsoft.VisualStudio.Shell.ServiceBroker;
 using Vespertan.VisualStudio.Contracts;
-using VsAgentProxy.Contracts;
 using Task = System.Threading.Tasks.Task;
+using Vespertan.VisualStudio.AgentProxy.Contracts;
+using Vespertan.VisualStudio.AgentProxy.Rpc;
+using Vespertan.VisualStudio.AgentProxy.Services;
 
-namespace VsAgentProxy;
+namespace Vespertan.VisualStudio.AgentProxy;
 
 [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
 [ProvideMenuResource("Menus.ctmenu", 1)]
 [ProvideBrokeredService(AgentServices.Name, AgentServices.Version, Audience = ServiceAudience.Local | ServiceAudience.PublicSdk)]
-[InstalledProductRegistration("VS Agent Proxy", "Local debugger automation bridge", "0.8")]
+[InstalledProductRegistration("Vespertan Agent Proxy", "Local debugger automation bridge", "0.8")]
 [ProvideAutoLoad(VSConstants.UICONTEXT.ShellInitialized_string, PackageAutoLoadFlags.BackgroundLoad)]
 [Guid(PackageGuidString)]
 public sealed class VsAgentProxyPackage : AsyncPackage
 {
-    public const string PackageGuidString = "7b8f6fcc-9bc7-472e-8dbe-75f32de824ec";
+    public const string PackageGuidString = "24117002-8054-4182-8801-f90a0180ade3";
     private static readonly Guid _commandSet = new("f087fb30-94d9-476f-a1c0-b0198c674f2f");
     private const int _statusCommandId = 0x0100;
 
@@ -64,7 +66,7 @@ public sealed class VsAgentProxyPackage : AsyncPackage
         }
         catch (Exception exception)
         {
-            ActivityLog.TryLogWarning(nameof(VsAgentProxy), "Error List service unavailable: " + exception.Message);
+            ActivityLog.TryLogWarning(nameof(Vespertan.VisualStudio.AgentProxy), "Error List service unavailable: " + exception.Message);
         }
 
         await JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);

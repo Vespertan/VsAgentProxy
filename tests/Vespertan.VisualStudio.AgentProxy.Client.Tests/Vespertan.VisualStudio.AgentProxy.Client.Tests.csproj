@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../../src/Vespertan.VisualStudio.AgentProxy.Contracts/Vespertan.VisualStudio.AgentProxy.Contracts.csproj" />
+        <Compile Include="../../src/Vespertan.VisualStudio.AgentProxy.Client/AgentCommandClient.cs" Link="AgentCommandClient.cs" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
+        <PackageReference Include="xunit" Version="2.9.3" />
+        <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" PrivateAssets="all" />
+    </ItemGroup>
+</Project>

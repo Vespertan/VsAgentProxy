@@ -18,6 +18,8 @@ foreach ($project in @('Contracts', 'Vsct')) {
 & $msbuild (Join-Path $PSScriptRoot 'src/Vespertan.VisualStudio.AgentProxy.slnx') /restore "/p:Configuration=$Configuration" /p:DeployExtension=false /nologo /v:minimal
 if ($LASTEXITCODE -ne 0) { throw 'Vespertan.VisualStudio.AgentProxy build failed.' }
 if ($Test) {
-    & dotnet test (Join-Path $PSScriptRoot 'src/Vespertan.VisualStudio.AgentProxy.Tests/Vespertan.VisualStudio.AgentProxy.Tests.csproj') -c $Configuration --no-build --no-restore --nologo
-    if ($LASTEXITCODE -ne 0) { throw 'Vespertan.VisualStudio.AgentProxy tests failed.' }
+    foreach ($project in @('Vespertan.VisualStudio.AgentProxy.Tests', 'Vespertan.VisualStudio.AgentProxy.Client.Tests')) {
+        & dotnet test (Join-Path $PSScriptRoot "tests/$project/$project.csproj") -c $Configuration --no-build --no-restore --nologo
+        if ($LASTEXITCODE -ne 0) { throw "$project tests failed." }
+    }
 }

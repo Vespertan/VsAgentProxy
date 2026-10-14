@@ -1,6 +1,6 @@
 using Microsoft.ServiceHub.Framework;
 using Vespertan.VisualStudio.Contracts;
-using VsAgentProxy.Contracts;
+using Vespertan.VisualStudio.AgentProxy.Contracts;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -329,8 +329,9 @@ static async Task<JsonObject> SendAsync(PipeInstance instance, JsonObject reques
         };
     }
 
-    var response = await agent.ExecuteAsync(request.ToJsonString(), timeout.Token).WaitAsync(timeout.Token);
-    return JsonNode.Parse(response) as JsonObject ?? throw new IOException("Invalid VsAgent response.");
+    var response = await AgentCommandClient.InvokeAsync(agent, command ?? string.Empty, request["params"]?.AsObject() ?? new JsonObject(), timeout.Token);
+    response["id"] = request["id"]?.DeepClone();
+    return response;
 }
 
 static async Task<int> WaitAsync(PipeInstance instance, string? operationId, string? requestedState, int connectMs, int responseMs, int waitMs, int pollMs)
@@ -398,14 +399,14 @@ static async Task<object> ProbeAsync(PipeInstance instance)
             return new { instance.Pid, instance.Pipe, instance.StartedUtc, Hub = hubState, VsAgent = "unavailable", Error = (string?)null };
         }
 
-        var response = JsonNode.Parse(await agent.ExecuteAsync(Request("ping", []).ToJsonString(), timeout.Token).WaitAsync(timeout.Token));
+        var response = await agent.PingAsync(timeout.Token).WaitAsync(timeout.Token);
         return new
         {
             instance.Pid,
             instance.Pipe,
             instance.StartedUtc,
             Hub = hubState,
-            VsAgent = response?["ok"]?.GetValue<bool>() == true ? "ready" : "error",
+            VsAgent = response.Ok ? "ready" : "error",
             Error = (string?)null
         };
     }
