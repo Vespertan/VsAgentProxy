@@ -4,7 +4,7 @@
   <Commands package="guidAgentProxyPackage">
     <Buttons>
       <Button guid="guidAgentProxyCommandSet" id="StatusCommand" priority="0x0100" type="Button">
-        <Parent guid="guidVespertanCommandSet" id="VespertanRootGroup" />
+        <Parent guid="guidVespertanHubCommandSet" id="VespertanExtensionsMenuGroup" />
         <Strings>
           <ButtonText>Agent Proxy status</ButtonText>
           <CommandName>Vespertan.AgentProxyStatus</CommandName>

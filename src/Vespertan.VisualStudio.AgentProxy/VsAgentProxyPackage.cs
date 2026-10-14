@@ -22,7 +22,7 @@ namespace Vespertan.VisualStudio.AgentProxy;
 [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
 [ProvideMenuResource("Menus.ctmenu", 1)]
 [ProvideBrokeredService(AgentServices.Name, AgentServices.Version, Audience = ServiceAudience.Local | ServiceAudience.PublicSdk)]
-[InstalledProductRegistration("Vespertan Agent Proxy", "Local debugger automation bridge", "0.8")]
+[InstalledProductRegistration("Vespertan Agent Proxy", "Local debugger automation bridge", "0.10")]
 [ProvideAutoLoad(VSConstants.UICONTEXT.ShellInitialized_string, PackageAutoLoadFlags.BackgroundLoad)]
 [Guid(PackageGuidString)]
 public sealed class VsAgentProxyPackage : AsyncPackage
