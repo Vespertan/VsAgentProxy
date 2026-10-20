@@ -1,6 +1,6 @@
 # VS Agent Proxy
 
-Current extension version: `0.8.0`. The typed RPC service contract is `1.0`.
+Current extension version: `0.10.0`. The typed RPC service contract is `1.0`.
 
 VS Agent Proxy is a local bridge between Visual Studio and automation clients.
 The extension publishes an explicit allow-list of operations through the central
@@ -53,9 +53,9 @@ tests/
 The root `.editorconfig` applies to both source and tests. Public contract types
 keep the `Vespertan.VisualStudio.AgentProxy.Contracts` namespace, as in VsHub.
 
-Building uses `Vespertan.VisualStudio.Vsct` 1.1.0 for shared menu identifiers
-and `Vespertan.VisualStudio.Contracts` 1.4.0 for service contracts and connections.
-The build script packs both from `../Vespertan/VsHub` into `artifacts/feed`.
+The extension uses `Vespertan.VisualStudio.Contracts` 1.11.0 for service contracts
+and shared menu definitions. The build script packs that project from
+`../Vespertan/VsHub` into `artifacts/feed`; no separate Vsct project is needed.
 Pass `-HubRoot` for a different checkout. Visual Studio 2026 18.5+ with the
 extension development workload is required.
 
@@ -72,9 +72,9 @@ Studio PID, extension version, service registration, start time, session ID,
 solution, debugger mode, and a CLI command for that instance. The dialog is a
 snapshot taken when opened; Ctrl+C copies its contents. The VSIX dependency
 uses the Hub's stable installation ID `Vespertan.VisualStudio.Hub`.
-Vsct and the Hub have independent versions: Vsct 1.1.0 is a build-time
-dependency; Hub 1.7.0 is the separately installed VSIX providing the shared menu
-and its native Visual Studio 2026 settings. The proxy does not bundle the Hub DLL.
+Contracts and the Hub VSIX have independent versions. The shared menu identifiers
+come from the Contracts NuGet package; the separately installed Hub VSIX provides
+the menu and its native Visual Studio settings. The proxy does not bundle the Hub DLL.
 
 ## Client
 
@@ -82,7 +82,7 @@ Install the client globally:
 
 ```powershell
 dotnet pack ./src/Vespertan.VisualStudio.AgentProxy.Client/Vespertan.VisualStudio.AgentProxy.Client.csproj -c Release --no-restore
-dotnet tool install --global --configfile ./NuGet.Tool.config Vespertan.VisualStudio.AgentProxy.Client --version 0.8.0
+dotnet tool install --global --configfile ./NuGet.Tool.config Vespertan.VisualStudio.AgentProxy.Client --version 0.10.0
 ```
 
 This build requires Hub 1.7+ and a CLI built against the same contracts.
@@ -90,8 +90,8 @@ The proxy registers `Vespertan.VisualStudio.AgentProxy/1.0`; Hub owns transport 
 requests. `instances` verifies Hub health and VsAgent availability separately.
 `IAgentService` exposes individual asynchronous methods with typed options and
 results. JSON command envelopes are a CLI input/output format, not the RPC contract.
-The runtime dependency is `Vespertan.VisualStudio.Contracts` 1.4.0,
-which also contains `HubConnection` for the CLI.
+The extension references `Vespertan.VisualStudio.Contracts` 1.11.0; the CLI
+references 1.9.0, which supplies `HubConnection` for its transport.
 Hub service commands: `hubStatus`, `selection`, `solutionTree`, and
 `watchSelection --durationMs 60000` (Ctrl+C stops listening).
 
