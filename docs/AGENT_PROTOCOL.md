@@ -404,8 +404,10 @@ vsagent --pid 12345 breakpointSetCriteria --id <id> --condition "retryCount > 5"
 All criteria parameters are optional; omitted values retain their current
 values. An empty `condition` removes the condition. Criteria changes are
 supported for file and function breakpoints. DTE cannot change these fields
-directly, so the proxy removes and recreates the breakpoint while preserving its
-state and ID.
+directly, so the proxy creates and configures replacements before deleting the
+original, preserving its state and ID. Failed replacement preparation keeps the
+original and attempts to remove the replacements; inspect `cleanupErrors` if
+the operation fails.
 
 ### Remove — `breakpointRemove`
 

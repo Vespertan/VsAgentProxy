@@ -936,8 +936,6 @@ internal sealed class AgentService : IAgentService
             function = string.Empty;
         }
 
-        var tag = breakpoint.Tag;
-        var enabled = breakpoint.Enabled;
         var condition = parameters.Value<string>("condition") ?? breakpoint.Condition ?? string.Empty;
         var conditionType = parameters["conditionType"] is null
             ? breakpoint.ConditionType
@@ -950,18 +948,17 @@ internal sealed class AgentService : IAgentService
         var column = Math.Max(1, breakpoint.FileColumn);
         var language = breakpoint.Language ?? string.Empty;
 
-        breakpoint.Delete();
-        var replacements = _dte.Debugger.Breakpoints.Add(
-            function, file, line, column, condition, conditionType, language,
-            string.Empty, 1, string.Empty, Math.Max(0, hitCount), hitCountType);
+        var replacements = BreakpointReplacement.Replace(breakpoint, () =>
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            return _dte.Debugger.Breakpoints.Add(
+                function, file, line, column, condition, conditionType, language,
+                string.Empty, 1, string.Empty, Math.Max(0, hitCount), hitCountType);
+        }, NewBreakpointTag);
 
         var result = new JArray();
-        var preserveOriginalId = !string.IsNullOrWhiteSpace(tag);
-        foreach (DteBreakpoint replacement in replacements)
+        foreach (var replacement in replacements)
         {
-            replacement.Tag = preserveOriginalId ? tag : NewBreakpointTag();
-            preserveOriginalId = false;
-            replacement.Enabled = enabled;
             result.Add(SerializeBreakpoint(replacement, FindBreakpointIndexByTag(replacement.Tag)));
         }
 
