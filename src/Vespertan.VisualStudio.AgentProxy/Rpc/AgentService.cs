@@ -999,19 +999,13 @@ internal sealed class AgentService : IAgentService
     private (DteBreakpoint Breakpoint, int Index) FindBreakpoint(JObject parameters)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
-        var requestedId = parameters.Value<string>("id");
-        var requestedIndex = parameters.Value<int?>("index");
-        if (string.IsNullOrWhiteSpace(requestedId) && !requestedIndex.HasValue)
-        {
-            throw new ArgumentException("Breakpoint selector 'id' or 'index' is required.");
-        }
+        var (requestedId, requestedIndex) = ProtocolSupport.BreakpointSelector(parameters);
 
         var index = 0;
         foreach (DteBreakpoint breakpoint in _dte.Debugger.Breakpoints)
         {
             var id = GetBreakpointId(breakpoint.Tag);
-            if ((!string.IsNullOrWhiteSpace(requestedId) && requestedId == id)
-                || (requestedIndex == index))
+            if (requestedId != null ? requestedId == id : requestedIndex == index)
             {
                 return (breakpoint, index);
             }

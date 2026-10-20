@@ -416,8 +416,9 @@ vsagent --pid 12345 breakpointRemove --id <id>
 vsagent --pid 12345 breakpointRemove --index 0
 ```
 
-Prefer `id`. `index` is zero-based and unstable after an item is added or
-removed.
+For removal, enablement and criteria changes, specify exactly one of `id` or
+`index`; supplying both is rejected. Prefer `id`. `index` is zero-based,
+non-negative and unstable after an item is added or removed.
 
 ## 7. Typed RPC service and CLI envelopes
 
