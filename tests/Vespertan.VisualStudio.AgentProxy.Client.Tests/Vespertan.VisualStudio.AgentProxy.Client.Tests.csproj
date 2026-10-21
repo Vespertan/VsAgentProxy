@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
+        <OutputType>Exe</OutputType>
+        <GenerateProgramFile>false</GenerateProgramFile>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <IsPackable>false</IsPackable>
@@ -9,6 +11,9 @@
     <ItemGroup>
         <ProjectReference Include="../../src/Vespertan.VisualStudio.AgentProxy.Contracts/Vespertan.VisualStudio.AgentProxy.Contracts.csproj" />
         <Compile Include="../../src/Vespertan.VisualStudio.AgentProxy.Client/AgentCommandClient.cs" Link="AgentCommandClient.cs" />
+        <Compile Include="../../src/Vespertan.VisualStudio.AgentProxy.Client/Program.cs" Link="Program.cs" />
+        <Compile Include="../../src/Vespertan.VisualStudio.AgentProxy.Client/PipeInstance.cs" Link="PipeInstance.cs" />
+        <PackageReference Include="Vespertan.VisualStudio.Contracts" Version="1.9.0" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
         <PackageReference Include="xunit" Version="2.9.3" />
         <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" PrivateAssets="all" />

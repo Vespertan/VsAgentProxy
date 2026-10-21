@@ -109,23 +109,12 @@ static async Task<int> RunAsync(string[] args)
 
     var command = arguments[0];
 
-    var instances = DiscoverInstances().ToArray();
     if (command == "instances")
     {
+        var instances = DiscoverInstances().ToArray();
         var checkedInstances = await Task.WhenAll(instances.Where(i => !requestedPid.HasValue || i.Pid == requestedPid.Value).Select(ProbeAsync));
         await Console.Out.WriteLineAsync(JsonSerializer.Serialize(checkedInstances, CreateJsonOptions()));
         return 0;
-    }
-
-    var instance = requestedPid.HasValue
-        ? instances.FirstOrDefault(item => item.Pid == requestedPid.Value)
-        : instances.OrderByDescending(item => item.StartedUtc ?? DateTime.MinValue).FirstOrDefault();
-    if (instance is null)
-    {
-        await Console.Error.WriteLineAsync(requestedPid.HasValue
-            ? $"Visual Studio instance {requestedPid.Value} with Vespertan Extensions Hub was not found."
-            : "No running Visual Studio instance with Vespertan Extensions Hub was found.");
-        return 2;
     }
 
     var parameters = new JsonObject();
@@ -164,8 +153,19 @@ static async Task<int> RunAsync(string[] args)
     var responseTimeout = TakeInteger(parameters, "responseTimeoutMs", 15000, 100, 300000);
     var waitTimeout = TakeInteger(parameters, "waitTimeoutMs", 120000, 100, 3600000);
     var pollMs = TakeInteger(parameters, "pollMs", 300, 100, 10000);
-    var wait = parameters["wait"]?.GetValue<bool>() == true;
-    parameters.Remove("wait");
+    var wait = TakeBoolean(parameters, "wait", false);
+
+    var availableInstances = DiscoverInstances().ToArray();
+    var instance = requestedPid.HasValue
+        ? availableInstances.FirstOrDefault(item => item.Pid == requestedPid.Value)
+        : availableInstances.OrderByDescending(item => item.StartedUtc ?? DateTime.MinValue).FirstOrDefault();
+    if (instance is null)
+    {
+        await Console.Error.WriteLineAsync(requestedPid.HasValue
+            ? $"Visual Studio instance {requestedPid.Value} with Vespertan Extensions Hub was not found."
+            : "No running Visual Studio instance with Vespertan Extensions Hub was found.");
+        return 2;
+    }
 
     var request = new JsonObject
     {
@@ -269,6 +269,22 @@ static void AddNamedOptions(JsonObject parameters, IReadOnlyList<string> argumen
 
         index++;
     }
+}
+
+static bool TakeBoolean(JsonObject values, string key, bool fallback)
+{
+    if (!values.TryGetPropertyValue(key, out var value))
+    {
+        return fallback;
+    }
+
+    if (value is not JsonValue scalar || !scalar.TryGetValue<bool>(out var boolean))
+    {
+        throw new ArgumentException($"{key} must be a boolean (true or false).");
+    }
+
+    values.Remove(key);
+    return boolean;
 }
 
 static int TakeInteger(JsonObject values, string key, int fallback, int min, int max)
